@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nanobox Preset Editor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --surface2: #2e2e2e;
+    --border: rgba(255,255,255,0.10);
+    --border2: rgba(255,255,255,0.18);
+    --text: #f0f0f0;
+    --text2: #a0a0a0;
+    --text3: #666;
+    --amber: #F5A623;
+    --amber-bg: rgba(245,166,35,0.12);
+    --amber-border: rgba(245,166,35,0.4);
+    --danger: #e05252;
+    --danger-bg: rgba(224,82,82,0.12);
+    --danger-border: rgba(224,82,82,0.4);
+    --success: #4caf7d;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Titlebar */
+  .titlebar {
+    background: #111;
+    padding: 12px 20px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+  .titlebar-dots { display: flex; gap: 6px; -webkit-app-region: no-drag; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-red { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green { background: #28c840; }
+  .titlebar-title { font-size: 13px; font-weight: 500; color: var(--text2); flex: 1; text-align: center; }
+  .titlebar-logo { font-size: 13px; font-weight: 600; color: var(--amber); letter-spacing: 0.02em; }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 48px); }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-right: 0.5px solid var(--border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  /* Main */
+  .main { padding: 24px 28px; overflow-y: auto; }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: transparent;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    background: rgba(255,255,255,0.04);
+    border-color: var(--amber);
+  }
+  .drop-zone.loaded {
+    border-style: solid;
+    border-color: var(--amber-border);
+    background: var(--amber-bg);
+  }
+  .drop-icon { font-size: 24px; margin-bottom: 6px; }
+  .drop-label { font-size: 12px; color: var(--text2); }
+  .drop-filename { font-size: 12px; font-weight: 600; color: var(--amber); margin-top: 4px; word-break: break-all; }
+  #fileInput { display: none; }
+
+  /* Section headers */
+  .section-header {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+
+  /* Sequence grid */
+  .seq-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .seq-btn {
+    padding: 7px 4px;
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.1s;
+    position: relative;
+  }
+  .seq-btn:hover { border-color: var(--border2); color: var(--text); }
+  .seq-btn.has-notes { color: var(--text); }
+  .seq-btn.has-notes::after {
+    content: '';
+    display: block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--amber);
+    position: absolute;
+    top: 4px;
+    right: 4px;
+  }
+  .seq-btn.empty { color: var(--text3); }
+  .seq-btn.active {
+    background: var(--amber-bg);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  /* Info chips */
+  .info-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 11px;
+    color: var(--text2);
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+  }
+  .chip strong { color: var(--text); font-weight: 500; }
+
+  /* Main content areas */
+  .main-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    gap: 12px;
+    color: var(--text3);
+    text-align: center;
+  }
+  .main-empty .big-icon { font-size: 48px; }
+  .main-empty p { font-size: 13px; max-width: 240px; line-height: 1.6; }
+
+  /* Pad grid */
+  .pad-section { margin-bottom: 28px; }
+  .pad-section-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 12px; }
+  .pad-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+
+  .pad-card {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 12px 10px;
+    cursor: pointer;
+    transition: all 0.12s;
+    text-align: center;
+    position: relative;
+  }
+  .pad-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .pad-card.has-notes { border-color: var(--amber-border); }
+  .pad-card.selected {
+    background: var(--amber-bg);
+    border-color: var(--amber);
+    border-width: 1.5px;
+  }
+  .pad-card.no-notes { opacity: 0.45; cursor: default; }
+  .pad-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .pad-note-name { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .pad-count {
+    font-size: 11px;
+    color: var(--amber);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  .pad-count.zero { color: var(--text3); }
+  .pad-midi { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* Row label */
+  .row-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-weight: 500; }
+
+  /* Action bar */
+  .action-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 16px 0;
+    border-top: 0.5px solid var(--border);
+    margin-top: 8px;
+  }
+  .btn {
+    padding: 8px 18px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 0.5px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    transition: all 0.1s;
+  }
+  .btn:hover { background: var(--surface); border-color: var(--border2); }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+  .btn-danger {
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    color: var(--danger);
+  }
+  .btn-danger:hover { background: rgba(224,82,82,0.2); }
+  .btn-primary {
+    background: var(--amber-bg);
+    border-color: var(--amber-border);
+    color: var(--amber);
+  }
+  .btn-primary:hover { background: rgba(245,166,35,0.2); }
+
+  .status { font-size: 12px; color: var(--text2); margin-left: 4px; }
+  .status.ok { color: var(--success); }
+  .status.err { color: var(--danger); }
+
+  /* Sequence info panel */
+  .seq-info {
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 20px;
+  }
+  .seq-info-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .seq-info-meta { display: flex; gap: 14px; flex-wrap: wrap; }
+  .seq-meta-item { font-size: 12px; color: var(--text2); }
+  .seq-meta-item strong { color: var(--text); font-weight: 500; }
+
+  hr { border: none; border-top: 0.5px solid var(--border); margin: 4px 0 16px; }
+
+  /* Select all row */
+  .select-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .btn-sm {
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 0.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    transition: all 0.1s;
+  }
+  .btn-sm:hover { color: var(--text); border-color: var(--border2); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #333;
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    border: 0.5px solid var(--border2);
+    transition: transform 0.25s ease;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(76,175,125,0.5); }
+  .toast.error { border-color: var(--danger-border); }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="titlebar-dots">
+    <div class="dot dot-red"></div>
+    <div class="dot dot-yellow"></div>
+    <div class="dot dot-green"></div>
+  </div>
+  <div class="titlebar-title">Nanobox Preset Editor</div>
+  <div class="titlebar-logo">tangerine</div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div>
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">🗂</div>
+        <div class="drop-label" id="dropLabel">Drop preset.xml here<br>or click to browse</div>
+        <div class="drop-filename" id="dropFilename"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".xml">
+    </div>
+
+    <div id="sidebarMeta" style="display:none">
+      <div class="section-header">Preset info</div>
+      <div class="info-chips" id="infoChips"></div>
+    </div>
+
+    <div id="sidebarSeq" style="display:none">
+      <div class="section-header">Sequences</div>
+      <div class="seq-grid" id="seqGrid"></div>
+      <div style="margin-top:8px; font-size:11px; color:var(--text3);">
+        ● = has note data
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main" id="mainArea">
+    <div class="main-empty" id="emptyState">
+      <div class="big-icon">🎹</div>
+      <p>Load a preset.xml file to get started. Select a sequence, then choose which pads to clear.</p>
+    </div>
+    <div id="editorArea" style="display:none"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PAD_MAP = [
+  { name: 'Pad 1', note: 'C2',   midi: 36, chan: 256 },
+  { name: 'Pad 2', note: 'C#2',  midi: 37, chan: 257 },
+  { name: 'Pad 3', note: 'D2',   midi: 38, chan: 258 },
+  { name: 'Pad 4', note: 'D#2',  midi: 39, chan: 259 },
+  { name: 'Pad 5', note: 'E2',   midi: 40, chan: 260 },
+  { name: 'Pad 6', note: 'F2',   midi: 41, chan: 261 },
+  { name: 'Pad 7', note: 'F#2',  midi: 42, chan: 262 },
+  { name: 'Pad 8', note: 'G2',   midi: 43, chan: 263 },
+];
+
+let xmlDoc = null;
+let originalFilename = 'preset.xml';
+let currentSeqIdx = null;
+let selectedPads = new Set();
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  originalFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const parser = new DOMParser();
+    xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+    const err = xmlDoc.querySelector('parsererror');
+    if (err) { showToast('Failed to parse XML', 'error'); return; }
+    document.getElementById('dropFilename').textContent = file.name;
+    document.getElementById('dropLabel').textContent = 'Loaded:';
+    dropZone.classList.add('loaded');
+    currentSeqIdx = null;
+    selectedPads.clear();
+    buildSidebar();
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('editorArea').style.display = 'block';
+    renderSeqPrompt();
+  };
+  reader.readAsText(file);
+}
+
+function getSeqCell(subIdx) {
+  const cells = xmlDoc.querySelectorAll('cell[type="noteseq"]');
+  for (const cell of cells) {
+    if (parseInt(cell.getAttribute('seqsublayer')) === subIdx) return cell;
+  }
+  return null;
+}
+
+function countEvents(cell, chan) {
+  if (!cell) return 0;
+  return cell.querySelectorAll(`seqevent[chan="${chan}"]`).length;
+}
+
+function totalEvents(cell) {
+  if (!cell) return 0;
+  return cell.querySelectorAll('seqevent').length;
+}
+
+function buildSidebar() {
+  // Info chips
+  const songCell = xmlDoc.querySelector('cell[type="song"]');
+  const tempo = songCell ? songCell.querySelector('params').getAttribute('globtempo') : '?';
+  const swing = songCell ? songCell.querySelector('params').getAttribute('swing') : '?';
+  const infoChips = document.getElementById('infoChips');
+  infoChips.innerHTML = `
+    <div class="chip">BPM: <strong>${tempo}</strong></div>
+    <div class="chip">Swing: <strong>${swing}</strong></div>
+  `;
+  document.getElementById('sidebarMeta').style.display = 'block';
+
+  // Sequence grid
+  const seqGrid = document.getElementById('seqGrid');
+  seqGrid.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const cell = getSeqCell(i);
+    const evCount = totalEvents(cell);
+    const btn = document.createElement('button');
+    btn.className = 'seq-btn' + (evCount > 0 ? ' has-notes' : ' empty');
+    btn.textContent = 'S' + (i + 1);
+    btn.title = evCount > 0 ? evCount + ' events' : 'Empty';
+    btn.dataset.idx = i;
+    btn.addEventListener('click', () => selectSeq(i));
+    seqGrid.appendChild(btn);
+  }
+  document.getElementById('sidebarSeq').style.display = 'block';
+}
+
+function selectSeq(idx) {
+  currentSeqIdx = idx;
+  selectedPads.clear();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === idx));
+  renderEditor();
+}
+
+function renderSeqPrompt() {
+  document.getElementById('editorArea').innerHTML = `
+    <div class="main-empty">
+      <div class="big-icon">🎼</div>
+      <p>Select a sequence from the left panel to begin editing.</p>
+    </div>`;
+}
+
+function renderEditor() {
+  const cell = getSeqCell(currentSeqIdx);
+  const seqName = 'S' + (currentSeqIdx + 1);
+  const evCount = totalEvents(cell);
+
+  const padsByRow = [PAD_MAP.slice(4, 8), PAD_MAP.slice(0, 4)];
+  const rowLabels = ['Row 2 — pads 5–8 (upper)', 'Row 1 — pads 1–4 (lower)'];
+
+  let padRows = '';
+  [[4,8],[0,4]].forEach(([from, to], rowIdx) => {
+    const pads = PAD_MAP.slice(from, to);
+    let cards = '';
+    pads.forEach((pad, i) => {
+      const globalIdx = from + i;
+      const count = countEvents(cell, pad.chan);
+      const hasNotes = count > 0;
+      cards += `
+        <div class="pad-card ${hasNotes ? 'has-notes' : 'no-notes'}" data-pad="${globalIdx}" onclick="togglePad(${globalIdx}, this)">
+          <div class="pad-name">${pad.name}</div>
+          <div class="pad-note-name">${pad.note}</div>
+          <div class="pad-count ${count === 0 ? 'zero' : ''}" id="pc-${globalIdx}">${count > 0 ? count + ' events' : '—'}</div>
+          <div class="pad-midi">ch ${pad.chan}</div>
+        </div>`;
+    });
+    padRows += `<div class="row-label">${rowLabels[rowIdx]}</div><div class="pad-grid">${cards}</div>`;
+  });
+
+  document.getElementById('editorArea').innerHTML = `
+    <div class="seq-info">
+      <div class="seq-info-title">Sequence ${seqName}</div>
+      <div class="seq-info-meta">
+        <div class="seq-meta-item">Total events: <strong>${evCount}</strong></div>
+        <div class="seq-meta-item">Active pads: <strong>${countActivePads(cell)}</strong></div>
+      </div>
+    </div>
+
+    <div class="select-row">
+      <button class="btn-sm" onclick="selectAllWithNotes()">Select all with notes</button>
+      <button class="btn-sm" onclick="clearSelection()">Clear selection</button>
+    </div>
+
+    <div class="pad-section">
+      <div class="pad-section-title">Pads — click to select for deletion</div>
+      ${padRows}
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-danger" id="btnDelete" disabled onclick="deleteSelected()">Delete selected notes</button>
+      <button class="btn btn-primary" id="btnDownload" onclick="downloadXML()">Download XML</button>
+      <span class="status" id="statusMsg"></span>
+    </div>`;
+}
+
+function countActivePads(cell) {
+  if (!cell) return 0;
+  return PAD_MAP.filter(p => countEvents(cell, p.chan) > 0).length;
+}
+
+function togglePad(idx, el) {
+  const pad = PAD_MAP[idx];
+  const cell = getSeqCell(currentSeqIdx);
+  if (countEvents(cell, pad.chan) === 0) return;
+  if (selectedPads.has(idx)) {
+    selectedPads.delete(idx);
+    el.classList.remove('selected');
+  } else {
+    selectedPads.add(idx);
+    el.classList.add('selected');
+  }
+  updateActionBar();
+}
+
+function selectAllWithNotes() {
+  const cell = getSeqCell(currentSeqIdx);
+  PAD_MAP.forEach((pad, idx) => {
+    if (countEvents(cell, pad.chan) > 0) {
+      selectedPads.add(idx);
+      const el = document.querySelector(`.pad-card[data-pad="${idx}"]`);
+      if (el) el.classList.add('selected');
+    }
+  });
+  updateActionBar();
+}
+
+function clearSelection() {
+  selectedPads.clear();
+  document.querySelectorAll('.pad-card').forEach(el => el.classList.remove('selected'));
+  updateActionBar();
+}
+
+function updateActionBar() {
+  const btn = document.getElementById('btnDelete');
+  if (btn) btn.disabled = selectedPads.size === 0;
+}
+
+function deleteSelected() {
+  if (selectedPads.size === 0) return;
+  const cell = getSeqCell(currentSeqIdx);
+  if (!cell) return;
+  let removed = 0;
+  selectedPads.forEach(idx => {
+    const pad = PAD_MAP[idx];
+    const events = [...cell.querySelectorAll(`seqevent[chan="${pad.chan}"]`)];
+    events.forEach(ev => { ev.parentNode.removeChild(ev); removed++; });
+  });
+  selectedPads.clear();
+  buildSidebar();
+  // Restore active state
+  document.querySelectorAll('.seq-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx);
+  });
+  renderEditor();
+  showToast(`Removed ${removed} note event${removed !== 1 ? 's' : ''} from S${currentSeqIdx + 1}`, 'success');
+}
+
+function downloadXML() {
+  if (!xmlDoc) return;
+  const serializer = new XMLSerializer();
+  const out = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(xmlDoc.documentElement);
+  const blob = new Blob([out], { type: 'application/xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const base = originalFilename.replace(/\.xml$/i, '');
+  a.download = base + '_modified.xml';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Saved as ' + a.download, 'success');
+}
+
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
