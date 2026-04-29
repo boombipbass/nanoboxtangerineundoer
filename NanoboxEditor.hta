@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Nanobox Preset Editor</title>
+<HTA:APPLICATION ID="NanoboxEditor" APPLICATIONNAME="Nanobox Preset Editor"
+  VERSION="1.0" BORDER="thin" CAPTION="yes" SHOWINTASKBAR="yes"
+  SINGLEINSTANCE="yes" WINDOWSTATE="normal" SCROLL="no" SELECTION="no" CONTEXTMENU="no"/>
+<script language="VBScript">
+Sub Window_OnLoad
+    window.resizeTo 1100, 720
+    window.moveTo (screen.width-1100)/2, (screen.height-720)/2
+End Sub
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #1a1a1a; --surface: #242424; --surface2: #2e2e2e;
+    --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
+    --text: #f0f0f0; --text2: #a0a0a0; --text3: #666;
+    --amber: #F5A623; --amber-bg: rgba(245,166,35,0.12); --amber-border: rgba(245,166,35,0.4);
+    --danger: #e05252; --danger-bg: rgba(224,82,82,0.12); --danger-border: rgba(224,82,82,0.4);
+    --success: #4caf7d;
+    --swap: #6c8ebf; --swap-bg: rgba(108,142,191,0.12); --swap-border: rgba(108,142,191,0.4);
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 0; font-size: 14px; line-height: 1.5; }
+  .titlebar { background: #111; padding: 12px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 12px; user-select: none; }
+  .titlebar-dots { display: flex; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-red { background: #ff5f57; } .dot-yellow { background: #febc2e; } .dot-green { background: #28c840; }
+  .titlebar-title { font-size: 13px; font-weight: 500; color: var(--text2); flex: 1; text-align: center; }
+  .titlebar-logo { font-size: 13px; font-weight: 600; color: var(--amber); letter-spacing: 0.02em; }
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 48px); }
+  .sidebar { background: var(--surface); border-right: 0.5px solid var(--border); padding: 20px 16px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; min-height: calc(100vh - 48px); }
+  .main { padding: 24px 28px; overflow-y: auto; }
+  .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 24px 16px; text-align: center; cursor: pointer; transition: all 0.15s; background: transparent; }
+  .drop-zone:hover, .drop-zone.drag-over { background: rgba(255,255,255,0.04); border-color: var(--amber); }
+  .drop-zone.loaded { border-style: solid; border-color: var(--amber-border); background: var(--amber-bg); }
+  .drop-icon { font-size: 24px; margin-bottom: 6px; }
+  .drop-label { font-size: 12px; color: var(--text2); }
+  .drop-filename { font-size: 12px; font-weight: 600; color: var(--amber); margin-top: 4px; word-break: break-all; }
+  #fileInput { display: none; }
+  .section-header { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+  .seq-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .seq-btn { padding: 7px 4px; border: 0.5px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; transition: all 0.1s; position: relative; }
+  .seq-btn:hover { border-color: var(--border2); color: var(--text); }
+  .seq-btn.has-notes { color: var(--text); }
+  .seq-btn.has-notes::after { content: ''; display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); position: absolute; top: 4px; right: 4px; }
+  .seq-btn.empty { color: var(--text3); }
+  .seq-btn.active { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+  .info-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; color: var(--text2); background: var(--surface2); border: 0.5px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+  .chip strong { color: var(--text); font-weight: 500; }
+  .main-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 12px; color: var(--text3); text-align: center; }
+  .main-empty .big-icon { font-size: 48px; }
+  .main-empty p { font-size: 13px; max-width: 260px; line-height: 1.6; }
+  .mode-tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+  .mode-tab { padding: 7px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface2); color: var(--text2); transition: all 0.12s; }
+  .mode-tab:hover { color: var(--text); border-color: var(--border2); }
+  .mode-tab.active-delete { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+  .mode-tab.active-swap { background: var(--swap-bg); border-color: var(--swap-border); color: var(--swap); }
+  .pad-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+  .pad-card { border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 12px 10px; cursor: pointer; transition: all 0.12s; text-align: center; position: relative; user-select: none; }
+  .pad-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .pad-card.has-notes { border-color: var(--amber-border); }
+  .pad-card.no-notes { opacity: 0.55; }
+  .pad-card.selected-delete { background: var(--danger-bg); border-color: var(--danger); border-width: 1.5px; }
+  .pad-card.swap-first { background: var(--swap-bg); border-color: var(--swap); border-width: 1.5px; box-shadow: 0 0 0 3px rgba(108,142,191,0.2); }
+  .pad-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .pad-sample { font-size: 10px; color: var(--amber); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .pad-note-name { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .pad-count { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .pad-count .ev { color: var(--amber); font-weight: 500; }
+  .pad-count .zero { color: var(--text3); }
+  .swap-badge { position: absolute; top: -8px; right: -8px; background: var(--swap); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 6px; }
+  .row-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-weight: 500; }
+  .swap-scope { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 12px; }
+  .swap-scope-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; width: 100%; margin-bottom: 2px; }
+  .swap-scope label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); }
+  .swap-scope input[type=checkbox] { accent-color: var(--swap); width: 14px; height: 14px; }
+  .swap-hint { font-size: 12px; color: var(--swap); background: var(--swap-bg); border: 0.5px solid var(--swap-border); border-radius: var(--radius); padding: 9px 14px; margin-bottom: 16px; }
+  .select-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .btn-sm { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface2); color: var(--text2); transition: all 0.1s; }
+  .btn-sm:hover { color: var(--text); border-color: var(--border2); }
+  .action-bar { display: flex; gap: 10px; align-items: center; padding: 16px 0; border-top: 0.5px solid var(--border); margin-top: 8px; flex-wrap: wrap; }
+  .btn { padding: 8px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border2); background: var(--surface2); color: var(--text); transition: all 0.1s; }
+  .btn:hover { background: var(--surface); }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+  .btn-danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+  .btn-danger:hover { background: rgba(224,82,82,0.2); }
+  .btn-swap { background: var(--swap-bg); border-color: var(--swap-border); color: var(--swap); }
+  .btn-swap:hover { background: rgba(108,142,191,0.22); }
+  .btn-primary { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber); }
+  .btn-primary:hover { background: rgba(245,166,35,0.2); }
+  .seq-info { background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 20px; }
+  .seq-info-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .seq-info-meta { display: flex; gap: 14px; flex-wrap: wrap; }
+  .seq-meta-item { font-size: 12px; color: var(--text2); }
+  .seq-meta-item strong { color: var(--text); font-weight: 500; }
+  .pad-section { margin-bottom: 24px; }
+  .ig-card { margin-top: auto; border-radius: var(--radius); border: 0.5px solid rgba(131,58,180,0.4); background: linear-gradient(135deg, rgba(131,58,180,0.15) 0%, rgba(253,29,29,0.1) 60%, rgba(252,176,69,0.12) 100%); padding: 14px 12px; text-align: center; cursor: pointer; transition: all 0.15s; text-decoration: none; display: block; }
+  .ig-card:hover { border-color: rgba(131,58,180,0.7); transform: translateY(-1px); }
+  .ig-icon { font-size: 22px; margin-bottom: 5px; }
+  .ig-handle { font-size: 13px; font-weight: 700; color: #f0f0f0; }
+  .ig-sub { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+  .ig-btn { display: inline-block; margin-top: 9px; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600; background: linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045); color: #fff; border: none; cursor: pointer; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: #333; color: var(--text); padding: 10px 20px; border-radius: var(--radius); font-size: 13px; border: 0.5px solid var(--border2); transition: transform 0.25s ease; z-index: 100; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(76,175,125,0.5); }
+  .toast.swap-done { border-color: var(--swap-border); }
+  .toast.error { border-color: var(--danger-border); }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="titlebar-dots">
+    <div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div>
+  </div>
+  <div class="titlebar-title">Nanobox Preset Editor</div>
+  <div class="titlebar-logo">tangerine</div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div>
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">🗂</div>
+        <div class="drop-label" id="dropLabel">Drop preset.xml here<br>or click to browse</div>
+        <div class="drop-filename" id="dropFilename"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".xml">
+    </div>
+    <div id="sidebarMeta" style="display:none">
+      <div class="section-header">Preset info</div>
+      <div class="info-chips" id="infoChips"></div>
+    </div>
+    <div id="sidebarSeq" style="display:none">
+      <div class="section-header">Sequences</div>
+      <div class="seq-grid" id="seqGrid"></div>
+      <div style="margin-top:8px; font-size:11px; color:var(--text3);">● = has note data</div>
+    </div>
+    <div style="flex:1"></div>
+    <a class="ig-card" href="https://www.instagram.com/larrydekat" target="_blank" onclick="openLink('https://www.instagram.com/larrydekat'); return false;">
+      <div class="ig-icon">📸</div>
+      <div class="ig-handle">@larrydekat</div>
+      <div class="ig-sub">Made by Larry de Kat</div>
+      <div class="ig-btn">Follow on Instagram</div>
+    </a>
+  </div>
+
+  <div class="main">
+    <div class="main-empty" id="emptyState">
+      <div class="big-icon">🎹</div>
+      <p>Load a preset.xml file to get started. Select a sequence, then choose which pads to edit.</p>
+    </div>
+    <div id="editorArea" style="display:none"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function openLink(url) { try { window.open(url, '_blank'); } catch(e) {} }
+
+// Pad index → sample cell row/column in the XML
+// Layout: row2 = pads 5-8 (row=0), row1 = pads 1-4 (row=1)
+// column = 0,1,2,3 left to right
+const PAD_MAP = [
+  { name:'Pad 1', note:'C2',   midi:36, chan:256, row:1, col:0 },
+  { name:'Pad 2', note:'C#2',  midi:37, chan:257, row:1, col:1 },
+  { name:'Pad 3', note:'D2',   midi:38, chan:258, row:1, col:2 },
+  { name:'Pad 4', note:'D#2',  midi:39, chan:259, row:1, col:3 },
+  { name:'Pad 5', note:'E2',   midi:40, chan:260, row:0, col:0 },
+  { name:'Pad 6', note:'F2',   midi:41, chan:261, row:0, col:1 },
+  { name:'Pad 7', note:'F#2',  midi:42, chan:262, row:0, col:2 },
+  { name:'Pad 8', note:'G2',   midi:43, chan:263, row:0, col:3 },
+];
+
+let xmlDoc = null, originalFilename = 'preset.xml';
+let currentSeqIdx = null, mode = 'delete';
+let selectedPads = new Set();
+let swapFirst = null;
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  originalFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const parser = new DOMParser();
+    xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+    if (xmlDoc.querySelector('parsererror')) { showToast('Failed to parse XML', 'error'); return; }
+    document.getElementById('dropFilename').textContent = file.name;
+    document.getElementById('dropLabel').textContent = 'Loaded:';
+    dropZone.classList.add('loaded');
+    currentSeqIdx = null; selectedPads.clear(); swapFirst = null;
+    buildSidebar();
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('editorArea').style.display = 'block';
+    renderSeqPrompt();
+  };
+  reader.readAsText(file);
+}
+
+// ── XML helpers ──────────────────────────────────────────────────────────────
+
+function getSeqCell(idx) {
+  for (const cell of xmlDoc.querySelectorAll('cell[type="noteseq"]'))
+    if (parseInt(cell.getAttribute('seqsublayer')) === idx) return cell;
+  return null;
+}
+
+function getSampleCell(padIdx) {
+  const pad = PAD_MAP[padIdx];
+  for (const cell of xmlDoc.querySelectorAll('cell[type="sample"]'))
+    if (parseInt(cell.getAttribute('row')) === pad.row && parseInt(cell.getAttribute('column')) === pad.col)
+      return cell;
+  return null;
+}
+
+function getSampleName(padIdx) {
+  const cell = getSampleCell(padIdx);
+  if (!cell) return null;
+  const fn = cell.getAttribute('filename') || '';
+  return fn.replace(/^.*[\\/]/, '').replace(/\.wav$/i, '');
+}
+
+function countSeqEvents(cell, chan) { return cell ? cell.querySelectorAll(`seqevent[chan="${chan}"]`).length : 0; }
+function totalEvents(cell) { return cell ? cell.querySelectorAll('seqevent').length : 0; }
+function countActivePads(cell) { return PAD_MAP.filter(p => countSeqEvents(cell, p.chan) > 0).length; }
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+
+function buildSidebar() {
+  const songCell = xmlDoc.querySelector('cell[type="song"]');
+  const params = songCell ? songCell.querySelector('params') : null;
+  document.getElementById('infoChips').innerHTML =
+    `<div class="chip">BPM: <strong>${params ? params.getAttribute('globtempo') : '?'}</strong></div>
+     <div class="chip">Swing: <strong>${params ? params.getAttribute('swing') : '?'}</strong></div>`;
+  document.getElementById('sidebarMeta').style.display = 'block';
+
+  const grid = document.getElementById('seqGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const ev = totalEvents(getSeqCell(i));
+    const btn = document.createElement('button');
+    btn.className = 'seq-btn ' + (ev > 0 ? 'has-notes' : 'empty');
+    btn.textContent = 'S'+(i+1); btn.title = ev > 0 ? ev+' events' : 'Empty'; btn.dataset.idx = i;
+    btn.addEventListener('click', () => selectSeq(i));
+    grid.appendChild(btn);
+  }
+  document.getElementById('sidebarSeq').style.display = 'block';
+}
+
+function selectSeq(idx) {
+  currentSeqIdx = idx; selectedPads.clear(); swapFirst = null;
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === idx));
+  renderEditor();
+}
+
+function renderSeqPrompt() {
+  document.getElementById('editorArea').innerHTML =
+    `<div class="main-empty"><div class="big-icon">🎼</div><p>Select a sequence from the left panel to begin editing.</p></div>`;
+}
+
+// ── Render editor ─────────────────────────────────────────────────────────────
+
+function renderEditor() {
+  const cell = getSeqCell(currentSeqIdx);
+  const seqName = 'S'+(currentSeqIdx+1);
+
+  let padRows = '';
+  [[4,8],[0,4]].forEach(([from,to], ri) => {
+    let cards = '';
+    for (let i = from; i < to; i++) {
+      const pad = PAD_MAP[i];
+      const count = countSeqEvents(cell, pad.chan);
+      const sample = getSampleName(i);
+      cards += `<div class="pad-card ${count>0?'has-notes':'no-notes'}" data-pad="${i}" id="padcard-${i}" onclick="handlePadClick(${i})">
+        <div class="pad-name">${pad.name}</div>
+        ${sample ? `<div class="pad-sample" title="${sample}">${sample}</div>` : '<div class="pad-sample" style="color:var(--text3)">no sample</div>'}
+        <div class="pad-note-name">${pad.note}</div>
+        <div class="pad-count"><span class="${count===0?'zero':'ev'}" id="pc-${i}">${count>0?count+' events':'—'}</span></div>
+      </div>`;
+    }
+    padRows += `<div class="row-label">${ri===0?'Row 2 — pads 5–8':'Row 1 — pads 1–4'}</div><div class="pad-grid">${cards}</div>`;
+  });
+
+  document.getElementById('editorArea').innerHTML = `
+    <div class="seq-info">
+      <div class="seq-info-title">Sequence ${seqName}</div>
+      <div class="seq-info-meta">
+        <div class="seq-meta-item">Total events: <strong>${totalEvents(cell)}</strong></div>
+        <div class="seq-meta-item">Active pads: <strong>${countActivePads(cell)}</strong></div>
+      </div>
+    </div>
+
+    <div class="mode-tabs">
+      <button class="mode-tab ${mode==='delete'?'active-delete':''}" onclick="setMode('delete')">🗑 Delete notes</button>
+      <button class="mode-tab ${mode==='swap'?'active-swap':''}" onclick="setMode('swap')">⇄ Swap pads</button>
+    </div>
+
+    <div id="deletePanel" style="${mode==='delete'?'':'display:none'}">
+      <div class="select-row">
+        <button class="btn-sm" onclick="selectAllWithNotes()">Select all with notes</button>
+        <button class="btn-sm" onclick="clearSelection()">Clear selection</button>
+      </div>
+    </div>
+
+    <div id="swapPanel" style="${mode==='swap'?'':'display:none'}">
+      <div class="swap-scope">
+        <div class="swap-scope-title">What to swap</div>
+        <label><input type="checkbox" id="swapNotes" checked> Sequence notes</label>
+        <label><input type="checkbox" id="swapSample" checked> Audio sample + settings</label>
+      </div>
+      <div class="swap-hint" id="swapHint">Click the first pad to swap.</div>
+    </div>
+
+    <div class="pad-section">
+      <div class="row-label" style="margin-bottom:12px; color:var(--text2); font-size:12px;">
+        ${mode==='delete'?'Click pads to select for deletion':'Click two pads to swap them'}
+      </div>
+      ${padRows}
+    </div>
+
+    <div class="action-bar">
+      <div id="actionButtons"></div>
+      <button class="btn btn-primary" onclick="downloadXML()">Download XML</button>
+    </div>`;
+
+  renderActionButtons();
+}
+
+function setMode(m) {
+  mode = m; selectedPads.clear(); swapFirst = null;
+  renderEditor();
+}
+
+function handlePadClick(padIdx) {
+  if (mode === 'delete') toggleDeletePad(padIdx);
+  else handleSwapClick(padIdx);
+}
+
+// ── Delete mode ───────────────────────────────────────────────────────────────
+
+function toggleDeletePad(idx) {
+  const el = document.getElementById('padcard-'+idx);
+  const cell = getSeqCell(currentSeqIdx);
+  if (!el || countSeqEvents(cell, PAD_MAP[idx].chan) === 0) return;
+  if (selectedPads.has(idx)) { selectedPads.delete(idx); el.classList.remove('selected-delete'); }
+  else { selectedPads.add(idx); el.classList.add('selected-delete'); }
+  renderActionButtons();
+}
+
+function selectAllWithNotes() {
+  const cell = getSeqCell(currentSeqIdx);
+  PAD_MAP.forEach((pad, idx) => {
+    if (countSeqEvents(cell, pad.chan) > 0) {
+      selectedPads.add(idx);
+      document.getElementById('padcard-'+idx)?.classList.add('selected-delete');
+    }
+  });
+  renderActionButtons();
+}
+
+function clearSelection() {
+  selectedPads.clear();
+  document.querySelectorAll('.pad-card').forEach(el => el.classList.remove('selected-delete'));
+  renderActionButtons();
+}
+
+function deleteSelected() {
+  const cell = getSeqCell(currentSeqIdx);
+  let removed = 0;
+  selectedPads.forEach(idx => {
+    [...cell.querySelectorAll(`seqevent[chan="${PAD_MAP[idx].chan}"]`)].forEach(ev => { ev.parentNode.removeChild(ev); removed++; });
+  });
+  selectedPads.clear();
+  buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx));
+  renderEditor();
+  showToast(`Removed ${removed} note event${removed!==1?'s':''} from S${currentSeqIdx+1}`, 'success');
+}
+
+// ── Swap mode ─────────────────────────────────────────────────────────────────
+
+function handleSwapClick(padIdx) {
+  if (!swapFirst) {
+    swapFirst = padIdx;
+    document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+    const el = document.getElementById('padcard-'+padIdx);
+    if (el) {
+      el.classList.add('swap-first');
+      const badge = document.createElement('span');
+      badge.className = 'swap-badge'; badge.textContent = '1st';
+      el.appendChild(badge);
+    }
+    updateSwapHint();
+  } else {
+    if (swapFirst === padIdx) {
+      // same pad — cancel
+      swapFirst = null;
+      document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+      updateSwapHint(); return;
+    }
+    performSwap(swapFirst, padIdx);
+  }
+}
+
+function performSwap(idxA, idxB) {
+  const doNotes  = document.getElementById('swapNotes')?.checked !== false;
+  const doSample = document.getElementById('swapSample')?.checked !== false;
+
+  const padA = PAD_MAP[idxA], padB = PAD_MAP[idxB];
+  const parts = [];
+
+  // 1. Swap sequence notes (all sequences, not just current)
+  if (doNotes) {
+    const allSeqCells = xmlDoc.querySelectorAll('cell[type="noteseq"]');
+    allSeqCells.forEach(seqCell => {
+      const evA = [...seqCell.querySelectorAll(`seqevent[chan="${padA.chan}"]`)];
+      const evB = [...seqCell.querySelectorAll(`seqevent[chan="${padB.chan}"]`)];
+      evA.forEach(ev => ev.setAttribute('chan', String(padB.chan)));
+      evB.forEach(ev => ev.setAttribute('chan', String(padA.chan)));
+    });
+    parts.push('notes in all sequences');
+  }
+
+  // 2. Swap sample cells (swap row/column attributes + filename + all child nodes)
+  if (doSample) {
+    const cellA = getSampleCell(idxA);
+    const cellB = getSampleCell(idxB);
+
+    if (cellA && cellB) {
+      // Swap row/column attributes so each cell moves to the other pad's slot
+      const [rA, cA] = [cellA.getAttribute('row'), cellA.getAttribute('column')];
+      const [rB, cB] = [cellB.getAttribute('row'), cellB.getAttribute('column')];
+      cellA.setAttribute('row', rB); cellA.setAttribute('column', cB);
+      cellB.setAttribute('row', rA); cellB.setAttribute('column', cA);
+      parts.push('sample + settings');
+    } else if (cellA || cellB) {
+      // Only one pad has a sample — move it
+      const existingCell = cellA || cellB;
+      const targetPad = cellA ? padB : padA;
+      existingCell.setAttribute('row', String(targetPad.row));
+      existingCell.setAttribute('column', String(targetPad.col));
+      parts.push('sample + settings');
+    }
+  }
+
+  const what = parts.length ? parts.join(' & ') : 'nothing (select what to swap above)';
+  showToast(`Swapped ${padA.name} ⇄ ${padB.name}: ${what}`, 'swap-done');
+
+  swapFirst = null;
+  buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx));
+  renderEditor();
+}
+
+function updateSwapHint() {
+  const hint = document.getElementById('swapHint');
+  if (!hint) return;
+  hint.textContent = swapFirst === null
+    ? 'Click the first pad to swap.'
+    : `${PAD_MAP[swapFirst].name} selected. Now click the second pad.`;
+}
+
+function renderActionButtons() {
+  const c = document.getElementById('actionButtons');
+  if (!c) return;
+  if (mode === 'delete') {
+    c.innerHTML = `<button class="btn btn-danger" ${selectedPads.size===0?'disabled':''} onclick="deleteSelected()">Delete selected notes</button>`;
+  } else {
+    c.innerHTML = `<button class="btn btn-swap" onclick="cancelSwap()">Cancel swap</button>`;
+  }
+}
+
+function cancelSwap() {
+  swapFirst = null;
+  document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+  updateSwapHint();
+}
+
+function downloadXML() {
+  if (!xmlDoc) return;
+  const out = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(xmlDoc.documentElement);
+  const blob = new Blob([out], { type:'application/xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = originalFilename.replace(/\.xml$/i,'')+'_modified.xml';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Downloaded as '+a.download, 'success');
+}
+
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show'+(type?' '+type:'');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+
+<script>
+
+function openLink(url) { try { window.open(url, '_blank'); } catch(e) {} }
+
+// Pad index → sample cell row/column in the XML
+// Layout: row2 = pads 5-8 (row=0), row1 = pads 1-4 (row=1)
+// column = 0,1,2,3 left to right
+const PAD_MAP = [
+  { name:'Pad 1', note:'C2',   midi:36, chan:256, row:1, col:0 },
+  { name:'Pad 2', note:'C#2',  midi:37, chan:257, row:1, col:1 },
+  { name:'Pad 3', note:'D2',   midi:38, chan:258, row:1, col:2 },
+  { name:'Pad 4', note:'D#2',  midi:39, chan:259, row:1, col:3 },
+  { name:'Pad 5', note:'E2',   midi:40, chan:260, row:0, col:0 },
+  { name:'Pad 6', note:'F2',   midi:41, chan:261, row:0, col:1 },
+  { name:'Pad 7', note:'F#2',  midi:42, chan:262, row:0, col:2 },
+  { name:'Pad 8', note:'G2',   midi:43, chan:263, row:0, col:3 },
+];
+
+let xmlDoc = null, originalFilename = 'preset.xml';
+let currentSeqIdx = null, mode = 'delete';
+let selectedPads = new Set();
+let swapFirst = null;
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  originalFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const parser = new DOMParser();
+    xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+    if (xmlDoc.querySelector('parsererror')) { showToast('Failed to parse XML', 'error'); return; }
+    document.getElementById('dropFilename').textContent = file.name;
+    document.getElementById('dropLabel').textContent = 'Loaded:';
+    dropZone.classList.add('loaded');
+    currentSeqIdx = null; selectedPads.clear(); swapFirst = null;
+    buildSidebar();
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('editorArea').style.display = 'block';
+    renderSeqPrompt();
+  };
+  reader.readAsText(file);
+}
+
+// ── XML helpers ──────────────────────────────────────────────────────────────
+
+function getSeqCell(idx) {
+  for (const cell of xmlDoc.querySelectorAll('cell[type="noteseq"]'))
+    if (parseInt(cell.getAttribute('seqsublayer')) === idx) return cell;
+  return null;
+}
+
+function getSampleCell(padIdx) {
+  const pad = PAD_MAP[padIdx];
+  for (const cell of xmlDoc.querySelectorAll('cell[type="sample"]'))
+    if (parseInt(cell.getAttribute('row')) === pad.row && parseInt(cell.getAttribute('column')) === pad.col)
+      return cell;
+  return null;
+}
+
+function getSampleName(padIdx) {
+  const cell = getSampleCell(padIdx);
+  if (!cell) return null;
+  const fn = cell.getAttribute('filename') || '';
+  return fn.replace(/^.*[\\/]/, '').replace(/\.wav$/i, '');
+}
+
+function countSeqEvents(cell, chan) { return cell ? cell.querySelectorAll(`seqevent[chan="${chan}"]`).length : 0; }
+function totalEvents(cell) { return cell ? cell.querySelectorAll('seqevent').length : 0; }
+function countActivePads(cell) { return PAD_MAP.filter(p => countSeqEvents(cell, p.chan) > 0).length; }
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+
+function buildSidebar() {
+  const songCell = xmlDoc.querySelector('cell[type="song"]');
+  const params = songCell ? songCell.querySelector('params') : null;
+  document.getElementById('infoChips').innerHTML =
+    `<div class="chip">BPM: <strong>${params ? params.getAttribute('globtempo') : '?'}</strong></div>
+     <div class="chip">Swing: <strong>${params ? params.getAttribute('swing') : '?'}</strong></div>`;
+  document.getElementById('sidebarMeta').style.display = 'block';
+
+  const grid = document.getElementById('seqGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const ev = totalEvents(getSeqCell(i));
+    const btn = document.createElement('button');
+    btn.className = 'seq-btn ' + (ev > 0 ? 'has-notes' : 'empty');
+    btn.textContent = 'S'+(i+1); btn.title = ev > 0 ? ev+' events' : 'Empty'; btn.dataset.idx = i;
+    btn.addEventListener('click', () => selectSeq(i));
+    grid.appendChild(btn);
+  }
+  document.getElementById('sidebarSeq').style.display = 'block';
+}
+
+function selectSeq(idx) {
+  currentSeqIdx = idx; selectedPads.clear(); swapFirst = null;
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === idx));
+  renderEditor();
+}
+
+function renderSeqPrompt() {
+  document.getElementById('editorArea').innerHTML =
+    `<div class="main-empty"><div class="big-icon">🎼</div><p>Select a sequence from the left panel to begin editing.</p></div>`;
+}
+
+// ── Render editor ─────────────────────────────────────────────────────────────
+
+function renderEditor() {
+  const cell = getSeqCell(currentSeqIdx);
+  const seqName = 'S'+(currentSeqIdx+1);
+
+  let padRows = '';
+  [[4,8],[0,4]].forEach(([from,to], ri) => {
+    let cards = '';
+    for (let i = from; i < to; i++) {
+      const pad = PAD_MAP[i];
+      const count = countSeqEvents(cell, pad.chan);
+      const sample = getSampleName(i);
+      cards += `<div class="pad-card ${count>0?'has-notes':'no-notes'}" data-pad="${i}" id="padcard-${i}" onclick="handlePadClick(${i})">
+        <div class="pad-name">${pad.name}</div>
+        ${sample ? `<div class="pad-sample" title="${sample}">${sample}</div>` : '<div class="pad-sample" style="color:var(--text3)">no sample</div>'}
+        <div class="pad-note-name">${pad.note}</div>
+        <div class="pad-count"><span class="${count===0?'zero':'ev'}" id="pc-${i}">${count>0?count+' events':'—'}</span></div>
+      </div>`;
+    }
+    padRows += `<div class="row-label">${ri===0?'Row 2 — pads 5–8':'Row 1 — pads 1–4'}</div><div class="pad-grid">${cards}</div>`;
+  });
+
+  document.getElementById('editorArea').innerHTML = `
+    <div class="seq-info">
+      <div class="seq-info-title">Sequence ${seqName}</div>
+      <div class="seq-info-meta">
+        <div class="seq-meta-item">Total events: <strong>${totalEvents(cell)}</strong></div>
+        <div class="seq-meta-item">Active pads: <strong>${countActivePads(cell)}</strong></div>
+      </div>
+    </div>
+
+    <div class="mode-tabs">
+      <button class="mode-tab ${mode==='delete'?'active-delete':''}" onclick="setMode('delete')">🗑 Delete notes</button>
+      <button class="mode-tab ${mode==='swap'?'active-swap':''}" onclick="setMode('swap')">⇄ Swap pads</button>
+    </div>
+
+    <div id="deletePanel" style="${mode==='delete'?'':'display:none'}">
+      <div class="select-row">
+        <button class="btn-sm" onclick="selectAllWithNotes()">Select all with notes</button>
+        <button class="btn-sm" onclick="clearSelection()">Clear selection</button>
+      </div>
+    </div>
+
+    <div id="swapPanel" style="${mode==='swap'?'':'display:none'}">
+      <div class="swap-scope">
+        <div class="swap-scope-title">What to swap</div>
+        <label><input type="checkbox" id="swapNotes" checked> Sequence notes</label>
+        <label><input type="checkbox" id="swapSample" checked> Audio sample + settings</label>
+      </div>
+      <div class="swap-hint" id="swapHint">Click the first pad to swap.</div>
+    </div>
+
+    <div class="pad-section">
+      <div class="row-label" style="margin-bottom:12px; color:var(--text2); font-size:12px;">
+        ${mode==='delete'?'Click pads to select for deletion':'Click two pads to swap them'}
+      </div>
+      ${padRows}
+    </div>
+
+    <div class="action-bar">
+      <div id="actionButtons"></div>
+      <button class="btn btn-primary" onclick="downloadXML()">Download XML</button>
+    </div>`;
+
+  renderActionButtons();
+}
+
+function setMode(m) {
+  mode = m; selectedPads.clear(); swapFirst = null;
+  renderEditor();
+}
+
+function handlePadClick(padIdx) {
+  if (mode === 'delete') toggleDeletePad(padIdx);
+  else handleSwapClick(padIdx);
+}
+
+// ── Delete mode ───────────────────────────────────────────────────────────────
+
+function toggleDeletePad(idx) {
+  const el = document.getElementById('padcard-'+idx);
+  const cell = getSeqCell(currentSeqIdx);
+  if (!el || countSeqEvents(cell, PAD_MAP[idx].chan) === 0) return;
+  if (selectedPads.has(idx)) { selectedPads.delete(idx); el.classList.remove('selected-delete'); }
+  else { selectedPads.add(idx); el.classList.add('selected-delete'); }
+  renderActionButtons();
+}
+
+function selectAllWithNotes() {
+  const cell = getSeqCell(currentSeqIdx);
+  PAD_MAP.forEach((pad, idx) => {
+    if (countSeqEvents(cell, pad.chan) > 0) {
+      selectedPads.add(idx);
+      document.getElementById('padcard-'+idx)?.classList.add('selected-delete');
+    }
+  });
+  renderActionButtons();
+}
+
+function clearSelection() {
+  selectedPads.clear();
+  document.querySelectorAll('.pad-card').forEach(el => el.classList.remove('selected-delete'));
+  renderActionButtons();
+}
+
+function deleteSelected() {
+  const cell = getSeqCell(currentSeqIdx);
+  let removed = 0;
+  selectedPads.forEach(idx => {
+    [...cell.querySelectorAll(`seqevent[chan="${PAD_MAP[idx].chan}"]`)].forEach(ev => { ev.parentNode.removeChild(ev); removed++; });
+  });
+  selectedPads.clear();
+  buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx));
+  renderEditor();
+  showToast(`Removed ${removed} note event${removed!==1?'s':''} from S${currentSeqIdx+1}`, 'success');
+}
+
+// ── Swap mode ─────────────────────────────────────────────────────────────────
+
+function handleSwapClick(padIdx) {
+  if (!swapFirst) {
+    swapFirst = padIdx;
+    document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+    const el = document.getElementById('padcard-'+padIdx);
+    if (el) {
+      el.classList.add('swap-first');
+      const badge = document.createElement('span');
+      badge.className = 'swap-badge'; badge.textContent = '1st';
+      el.appendChild(badge);
+    }
+    updateSwapHint();
+  } else {
+    if (swapFirst === padIdx) {
+      // same pad — cancel
+      swapFirst = null;
+      document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+      updateSwapHint(); return;
+    }
+    performSwap(swapFirst, padIdx);
+  }
+}
+
+function performSwap(idxA, idxB) {
+  const doNotes  = document.getElementById('swapNotes')?.checked !== false;
+  const doSample = document.getElementById('swapSample')?.checked !== false;
+
+  const padA = PAD_MAP[idxA], padB = PAD_MAP[idxB];
+  const parts = [];
+
+  // 1. Swap sequence notes (all sequences, not just current)
+  if (doNotes) {
+    const allSeqCells = xmlDoc.querySelectorAll('cell[type="noteseq"]');
+    allSeqCells.forEach(seqCell => {
+      const evA = [...seqCell.querySelectorAll(`seqevent[chan="${padA.chan}"]`)];
+      const evB = [...seqCell.querySelectorAll(`seqevent[chan="${padB.chan}"]`)];
+      evA.forEach(ev => ev.setAttribute('chan', String(padB.chan)));
+      evB.forEach(ev => ev.setAttribute('chan', String(padA.chan)));
+    });
+    parts.push('notes in all sequences');
+  }
+
+  // 2. Swap sample cells (swap row/column attributes + filename + all child nodes)
+  if (doSample) {
+    const cellA = getSampleCell(idxA);
+    const cellB = getSampleCell(idxB);
+
+    if (cellA && cellB) {
+      // Swap row/column attributes so each cell moves to the other pad's slot
+      const [rA, cA] = [cellA.getAttribute('row'), cellA.getAttribute('column')];
+      const [rB, cB] = [cellB.getAttribute('row'), cellB.getAttribute('column')];
+      cellA.setAttribute('row', rB); cellA.setAttribute('column', cB);
+      cellB.setAttribute('row', rA); cellB.setAttribute('column', cA);
+      parts.push('sample + settings');
+    } else if (cellA || cellB) {
+      // Only one pad has a sample — move it
+      const existingCell = cellA || cellB;
+      const targetPad = cellA ? padB : padA;
+      existingCell.setAttribute('row', String(targetPad.row));
+      existingCell.setAttribute('column', String(targetPad.col));
+      parts.push('sample + settings');
+    }
+  }
+
+  const what = parts.length ? parts.join(' & ') : 'nothing (select what to swap above)';
+  showToast(`Swapped ${padA.name} ⇄ ${padB.name}: ${what}`, 'swap-done');
+
+  swapFirst = null;
+  buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx));
+  renderEditor();
+}
+
+function updateSwapHint() {
+  const hint = document.getElementById('swapHint');
+  if (!hint) return;
+  hint.textContent = swapFirst === null
+    ? 'Click the first pad to swap.'
+    : `${PAD_MAP[swapFirst].name} selected. Now click the second pad.`;
+}
+
+function renderActionButtons() {
+  const c = document.getElementById('actionButtons');
+  if (!c) return;
+  if (mode === 'delete') {
+    c.innerHTML = `<button class="btn btn-danger" ${selectedPads.size===0?'disabled':''} onclick="deleteSelected()">Delete selected notes</button>`;
+  } else {
+    c.innerHTML = `<button class="btn btn-swap" onclick="cancelSwap()">Cancel swap</button>`;
+  }
+}
+
+function cancelSwap() {
+  swapFirst = null;
+  document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+  updateSwapHint();
+}
+
+function downloadXML() {
+  if (!xmlDoc) return;
+  const out = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(xmlDoc.documentElement);
+  const blob = new Blob([out], { type:'application/xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = originalFilename.replace(/\.xml$/i,'')+'_modified.xml';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Downloaded as '+a.download, 'success');
+}
+
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show'+(type?' '+type:'');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+</script>
+</body>
+</html>
