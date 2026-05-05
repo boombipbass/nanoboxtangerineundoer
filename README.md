@@ -1,3 +1,5 @@
+for now for mac only, open in safari browser.
+
 with this .html file you can delete pads from sequences 
 by uploading the preset.xml file into the webbrowser app
 and select the pads and sequences you want to delete. 
@@ -43,3 +45,5 @@ LFO, slices — everything) to the other pad's slot.
 There are two checkboxes in swap mode so you can 
 choose to swap just the notes, just the sample, 
 or both together.
+
+****Also info on pad settings and sequencer steps are available in beta.
