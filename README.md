@@ -46,4 +46,4 @@ There are two checkboxes in swap mode so you can
 choose to swap just the notes, just the sample, 
 or both together.
 
-****Also info on pad settings and sequencer steps are available in beta.
+**** *Also info on pad settings and the deleting of single events on the stepsequencer of the pads are available in beta too, together with slices view and editting.* ****
