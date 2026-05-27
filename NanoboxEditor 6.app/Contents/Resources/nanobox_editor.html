@@ -418,7 +418,8 @@ function renderEditor() {
   const cell = getSeqCell(currentSeqIdx);
   const seqName = 'S'+(currentSeqIdx+1);
   const tabs = [
-    { id:'delete',   label:'🗑 Delete notes',   cls:'active-delete' },
+    { id:'delete',   label:'🗑 Delete pads',    cls:'active-delete' },
+    { id:'events',   label:'🎵 Delete events',  cls:'active-delete' },
     { id:'swap',     label:'⇄ Swap pads',        cls:'active-swap' },
     { id:'settings', label:'⚙ Settings',         cls:'active-settings' },
     { id:'envelope', label:'◈ Envelope',          cls:'active-envelope' },
@@ -457,8 +458,9 @@ function setMode(m) {
 function renderModeContent() {
   const c = document.getElementById('modeContent');
   if (!c) return;
-  if (mode === 'delete')   { c.innerHTML = renderDeletePanel();   renderActionButtons(); }
-  if (mode === 'swap')     { c.innerHTML = renderSwapPanel();     renderActionButtons(); }
+  if (mode === 'delete')   { c.innerHTML = renderDeletePanel();        renderActionButtons(); }
+  if (mode === 'events')   { c.innerHTML = renderEventGridPanel();     renderActionButtons(); }
+  if (mode === 'swap')     { c.innerHTML = renderSwapPanel();          renderActionButtons(); }
   if (mode === 'settings') { c.innerHTML = renderSettingsPanel(); renderActionButtons(); }
   if (mode === 'envelope') { c.innerHTML = renderEnvelopePanel(); renderActionButtons(); }
   if (mode === 'slices')   {
@@ -473,12 +475,10 @@ function renderModeContent() {
 
 // ── DELETE ────────────────────────────────────────────────────────
 function renderDeletePanel() {
-  if (deleteView === 'events') return renderEventGridPanel();
   const padGrid = renderPadGrid((i, count) => selectedPads.has(i) ? 'selected-delete' : '');
   return `<div class="select-row">
     <button class="btn-sm" onclick="selectAllWithNotes()">Select all with notes</button>
     <button class="btn-sm" onclick="clearSelection()">Clear selection</button>
-    <button class="btn-sm" style="margin-left:auto;border-color:var(--amber-border);color:var(--amber)" onclick="deleteView='events';renderModeContent()">✦ Per event →</button>
   </div>
   <div class="pad-section">${padGrid}</div>`;
 }
@@ -832,10 +832,9 @@ function setActiveSlice(idx) {
 function renderActionButtons() {
   const c = document.getElementById('actionButtons'); if(!c) return;
   if (mode==='delete') {
-    if (deleteView === 'events')
-      c.innerHTML = `<button class="btn btn-danger" ${selectedEvents.size===0?'disabled':''} onclick="deleteSelectedEvents()">🗑 Verwijder ${selectedEvents.size} event${selectedEvents.size!==1?'s':''}</button>`;
-    else
-      c.innerHTML = `<button class="btn btn-danger" ${selectedPads.size===0?'disabled':''} onclick="deleteSelected()">Delete selected notes</button>`;
+    c.innerHTML = `<button class="btn btn-danger" ${selectedPads.size===0?'disabled':''} onclick="deleteSelected()">🗑 Delete ${selectedPads.size} pad${selectedPads.size!==1?'s':''}</button>`;
+  } else if (mode==='events') {
+    c.innerHTML = `<button class="btn btn-danger" ${selectedEvents.size===0?'disabled':''} onclick="deleteSelectedEvents()">🗑 Delete ${selectedEvents.size} event${selectedEvents.size!==1?'s':''}</button>`;
   } else if (mode==='swap') {
     c.innerHTML = `<button class="btn btn-swap" onclick="cancelSwap()">Cancel swap</button>`;
   } else if (mode==='copy') {
@@ -997,6 +996,78 @@ function midiToNote(midi) {
   return names[m % 12] + (Math.floor(m / 12) - 1);
 }
 
+// ── AUDIO AUDITION ────────────────────────────────────────────────
+let _audioCtx = null;
+const _audioCache = {};
+let _currentSrc = null;
+
+function getAudioCtx() {
+  if (!_audioCtx || _audioCtx.state === 'closed')
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+// Look up the actual XML seqevent element from a key like "padIdx:step:evIdx"
+function getSeqEventByKey(key) {
+  const [padIdx, , evIdx] = key.split(':').map(Number);
+  const seqCell = getSeqCell(currentSeqIdx);
+  if (!seqCell) return null;
+  const evs = [...seqCell.querySelectorAll(`seqevent[chan="${PAD_MAP[padIdx].chan}"]`)];
+  return evs[evIdx] ?? null;
+}
+
+// pitch: optional MIDI note value from the seqevent. If omitted, plays the active slice.
+async function auditPad(padIdx, pitch) {
+  const basename = (getSampleCell(padIdx)?.getAttribute('filename') || '').replace(/^.*[\\/]/,'');
+  if (!basename) return;
+  const file = audioFileMap[basename];
+  if (!file) { if (Object.keys(audioFileMap).length > 0) showToast('Sample not in folder: ' + basename); return; }
+  try {
+    const ctx = getAudioCtx();
+    if (!_audioCache[basename]) {
+      const ab = await file.arrayBuffer();
+      _audioCache[basename] = await ctx.decodeAudioData(ab);
+    }
+    try { _currentSrc?.stop(); } catch(e) {}
+
+    const decoded = _audioCache[basename];
+    const src = ctx.createBufferSource();
+    src.buffer = decoded;
+    src.connect(ctx.destination);
+
+    // ── Slice-aware playback ──────────────────────────────────────
+    const sampleCell = getSampleCell(padIdx);
+    const slices = [...(sampleCell?.querySelectorAll('slice') || [])];
+    const samlen = parseInt(getSampleParam(padIdx, 'samlen') || 0) || decoded.length;
+
+    if (slices.length > 0) {
+      // Map pitch → slice index: each semitone above the pad's base note = next slice
+      // e.g. Pad1 base = MIDI 36; pitch 38 → slice 2
+      let sliceIdx;
+      if (pitch !== undefined) {
+        sliceIdx = Math.max(0, Math.min(slices.length - 1, pitch - PAD_MAP[padIdx].midi));
+      } else {
+        sliceIdx = parseInt(getSampleParam(padIdx, 'actslice') || 0);
+      }
+
+      const startPos  = parseInt(slices[sliceIdx]?.getAttribute('pos') || 0);
+      const nextPos   = slices[sliceIdx + 1]
+        ? parseInt(slices[sliceIdx + 1].getAttribute('pos'))
+        : samlen;
+
+      const startSec = (startPos / samlen) * decoded.duration;
+      const durSec   = ((nextPos - startPos) / samlen) * decoded.duration;
+      src.start(0, startSec, Math.min(durSec, 3));
+    } else {
+      // No slices — play whole sample, cap at 3 s
+      src.start(0);
+      setTimeout(() => { try { src.stop(); } catch(e) {} }, 3000);
+    }
+
+    _currentSrc = src;
+  } catch(e) { console.warn('Audit playback failed:', e); }
+}
+
 // ── EVENT GRID ────────────────────────────────────────────────────
 function getSeqStepCount(seqCell) {
   if (!seqCell) return 16;
@@ -1069,8 +1140,8 @@ function renderEventGridPanel() {
       cells += `<div style="width:${CELL}px;flex-shrink:0;min-height:34px;border-left:${borderL};border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);border-right:0.5px solid var(--border);background:${bg};display:flex;align-items:center;justify-content:center;flex-wrap:wrap">${pills}</div>`;
     }
     padRows += `<div style="display:flex;align-items:stretch;margin-bottom:2px">
-      <div style="width:68px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;padding:4px 8px;background:var(--surface2);border:0.5px solid var(--border);border-radius:4px 0 0 4px;margin-right:3px">
-        <div style="font-size:11px;font-weight:600;color:var(--text)">${pad.name}</div>
+      <div style="width:68px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;padding:4px 8px;background:var(--surface2);border:0.5px solid var(--border);border-radius:4px 0 0 4px;margin-right:3px;cursor:pointer" onclick="auditPad(${padIdx})" title="▶ Play ${sample}">
+        <div style="font-size:11px;font-weight:600;color:var(--text)">${pad.name} <span style="font-size:9px;color:var(--text3)">▶</span></div>
         <div style="font-size:9px;color:var(--amber);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60px" title="${sample}">${sample}</div>
         <div style="font-size:9px;color:var(--text3)">${evEls.length}ev</div>
       </div>
@@ -1078,12 +1149,17 @@ function renderEventGridPanel() {
     </div>`;
   });
 
+  const hasAudio = Object.keys(audioFileMap).length > 0 || !!dirHandle;
+  const audioHint = hasAudio
+    ? `<span style="font-size:10px;color:var(--green)">▶ Click any note to audition</span>`
+    : `<button class="btn-sm" style="border-color:var(--amber-border);color:var(--amber)" onclick="requestDirAccess()">📁 Load folder to audition</button>`;
+
   const labelCol = '<div style="width:68px;flex-shrink:0;margin-right:3px"></div>';
   return `<div class="select-row" style="margin-bottom:12px">
-    <button class="btn-sm" style="border-color:var(--amber-border);color:var(--amber)" onclick="deleteView='pads';selectedEvents.clear();renderModeContent()">← Back</button>
     <button class="btn-sm" onclick="selectAllEvents()">Select all</button>
     <button class="btn-sm" onclick="clearEventSelection()">Deselect all</button>
     <span style="margin-left:auto;font-size:11px;color:var(--text3)">${stepCount} steps · ${Math.round(stepCount/16)} bar${stepCount/16!==1?'s':''}</span>
+    ${audioHint}
   </div>
   <div style="overflow-x:auto;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:12px">
     <div style="min-width:max-content">
@@ -1096,9 +1172,14 @@ function renderEventGridPanel() {
 
 function toggleEvent(key, e) {
   e.stopPropagation();
+  const padIdx = parseInt(key.split(':')[0]);
   if (selectedEvents.has(key)) selectedEvents.delete(key); else selectedEvents.add(key);
   e.currentTarget.classList.toggle('selected-ev', selectedEvents.has(key));
   renderActionButtons();
+  // Look up pitch from the actual XML event so we can play the right slice
+  const ev = getSeqEventByKey(key);
+  const pitch = ev ? parseInt(ev.getAttribute('pitch') ?? '') : undefined;
+  auditPad(padIdx, isNaN(pitch) ? undefined : pitch);
 }
 function selectAllEvents() {
   const seqCell = getSeqCell(currentSeqIdx);
