@@ -4,9 +4,7 @@ with this .html file you can delete pads from sequences
 by uploading the preset.xml file into the webbrowser app
 and select the pads and sequences you want to delete. 
 
-remember to make a backup of your preset and when exporting 
-the new preset_modified.xml change it back to preset.xml. 
-
+remember to make a backup of your preset.
 USAGE:
   1. Drag & drop your preset.xml into the app (or click to browse)
   2. Select a sequence (S1-S16) from the left panel
