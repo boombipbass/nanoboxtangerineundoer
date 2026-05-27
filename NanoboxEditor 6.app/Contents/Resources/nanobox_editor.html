@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nanobox Preset Editor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #1a1a1a; --surface: #242424; --surface2: #2e2e2e; --surface3: #363636;
+    --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
+    --text: #f0f0f0; --text2: #a0a0a0; --text3: #666;
+    --amber: #F5A623; --amber-bg: rgba(245,166,35,0.12); --amber-border: rgba(245,166,35,0.4);
+    --danger: #e05252; --danger-bg: rgba(224,82,82,0.12); --danger-border: rgba(224,82,82,0.4);
+    --swap: #6c8ebf; --swap-bg: rgba(108,142,191,0.12); --swap-border: rgba(108,142,191,0.4);
+    --green: #4caf7d; --green-bg: rgba(76,175,125,0.12); --green-border: rgba(76,175,125,0.4);
+    --purple: #9b72cf; --purple-bg: rgba(155,114,207,0.12); --purple-border: rgba(155,114,207,0.4);
+    --copy: #4ecdc4; --copy-bg: rgba(78,205,196,0.12); --copy-border: rgba(78,205,196,0.4);
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 0; font-size: 14px; line-height: 1.5; }
+  .titlebar { background: #111; padding: 12px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 12px; user-select: none; }
+  .titlebar-dots { display: flex; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-red { background: #ff5f57; } .dot-yellow { background: #febc2e; } .dot-green { background: #28c840; }
+  .titlebar-title { font-size: 13px; font-weight: 500; color: var(--text2); flex: 1; text-align: center; }
+  .titlebar-logo { font-size: 13px; font-weight: 600; color: var(--amber); }
+  .layout { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 48px); }
+  .sidebar { background: var(--surface); border-right: 0.5px solid var(--border); padding: 20px 16px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; min-height: calc(100vh - 48px); }
+  .main { padding: 24px 28px; overflow-y: auto; }
+  .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 24px 16px; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .drop-zone:hover, .drop-zone.drag-over { background: rgba(255,255,255,0.04); border-color: var(--amber); }
+  .drop-zone.loaded { border-style: solid; border-color: var(--amber-border); background: var(--amber-bg); }
+  .drop-icon { font-size: 24px; margin-bottom: 6px; }
+  .drop-label { font-size: 12px; color: var(--text2); }
+  .drop-filename { font-size: 12px; font-weight: 600; color: var(--amber); margin-top: 4px; word-break: break-all; }
+  #fileInput { display: none; }
+  .section-header { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+  .seq-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .seq-btn { padding: 7px 4px; border: 0.5px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; transition: all 0.1s; position: relative; }
+  .seq-btn:hover { border-color: var(--border2); color: var(--text); }
+  .seq-btn.has-notes::after { content: ''; display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); position: absolute; top: 4px; right: 4px; }
+  .seq-btn.empty { color: var(--text3); }
+  .seq-btn.active { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+  .seq-btn.copy-target { background: var(--copy-bg); border-color: var(--copy); color: var(--copy); }
+  .info-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; color: var(--text2); background: var(--surface2); border: 0.5px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+  .chip strong { color: var(--text); font-weight: 500; }
+  .main-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 12px; color: var(--text3); text-align: center; }
+  .main-empty .big-icon { font-size: 48px; }
+  .main-empty p { font-size: 13px; max-width: 260px; line-height: 1.6; }
+
+  /* Mode tabs */
+  .mode-tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .mode-tab { padding: 7px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface2); color: var(--text2); transition: all 0.12s; }
+  .mode-tab:hover { color: var(--text); border-color: var(--border2); }
+  .mode-tab.active-delete { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+  .mode-tab.active-swap   { background: var(--swap-bg);   border-color: var(--swap-border);   color: var(--swap); }
+  .mode-tab.active-settings { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+  .mode-tab.active-envelope { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
+  .mode-tab.active-slices { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber); }
+  .mode-tab.active-copy   { background: var(--copy-bg);  border-color: var(--copy-border);  color: var(--copy); }
+
+  /* Pad grid */
+  .pad-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+  .pad-card { border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 12px 10px; cursor: pointer; transition: all 0.12s; text-align: center; position: relative; user-select: none; }
+  .pad-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .pad-card.has-notes { border-color: var(--amber-border); }
+  .pad-card.no-notes { opacity: 0.55; }
+  .pad-card.selected-delete { background: var(--danger-bg); border-color: var(--danger); border-width: 1.5px; }
+  .pad-card.swap-first { background: var(--swap-bg); border-color: var(--swap); border-width: 1.5px; box-shadow: 0 0 0 3px rgba(108,142,191,0.2); }
+  .pad-card.selected-copy { background: var(--copy-bg); border-color: var(--copy); border-width: 1.5px; }
+  .pad-card.pad-active { background: var(--green-bg); border-color: var(--green); border-width: 1.5px; }
+  .pad-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .pad-sample { font-size: 10px; color: var(--amber); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pad-note-name { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .pad-count { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .pad-count .ev { color: var(--amber); font-weight: 500; }
+  .pad-count .zero { color: var(--text3); }
+  .swap-badge { position: absolute; top: -8px; right: -8px; background: var(--swap); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 6px; }
+  .row-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-weight: 500; }
+  .pad-section { margin-bottom: 20px; }
+
+  /* Swap */
+  .swap-scope { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 12px; }
+  .swap-scope-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; width: 100%; margin-bottom: 2px; }
+  .swap-scope label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); }
+  .swap-scope input[type=checkbox] { accent-color: var(--swap); width: 14px; height: 14px; }
+  .swap-hint { font-size: 12px; color: var(--swap); background: var(--swap-bg); border: 0.5px solid var(--swap-border); border-radius: var(--radius); padding: 9px 14px; margin-bottom: 16px; }
+  .select-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .btn-sm { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface2); color: var(--text2); transition: all 0.1s; }
+  .btn-sm:hover { color: var(--text); border-color: var(--border2); }
+
+  /* Action bar */
+  .action-bar { display: flex; gap: 10px; align-items: center; padding: 16px 0; border-top: 0.5px solid var(--border); margin-top: 8px; flex-wrap: wrap; }
+  .btn { padding: 8px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border2); background: var(--surface2); color: var(--text); transition: all 0.1s; }
+  .btn:hover { background: var(--surface); }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+  .btn-danger   { background: var(--danger-bg);  border-color: var(--danger-border);  color: var(--danger); }
+  .btn-danger:hover { background: rgba(224,82,82,0.2); }
+  .btn-swap     { background: var(--swap-bg);    border-color: var(--swap-border);    color: var(--swap); }
+  .btn-swap:hover { background: rgba(108,142,191,0.22); }
+  .btn-primary  { background: var(--amber-bg);   border-color: var(--amber-border);   color: var(--amber); }
+  .btn-primary:hover { background: rgba(245,166,35,0.2); }
+  .btn-green    { background: var(--green-bg);   border-color: var(--green-border);   color: var(--green); }
+  .btn-green:hover { background: rgba(76,175,125,0.22); }
+
+  /* Seq info */
+  .seq-info { background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 20px; }
+  .seq-info-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .seq-info-meta { display: flex; gap: 14px; flex-wrap: wrap; }
+  .seq-meta-item { font-size: 12px; color: var(--text2); }
+  .seq-meta-item strong { color: var(--text); font-weight: 500; }
+
+  /* ── Settings / Envelope panel ─────────────────────────────────── */
+  .param-panel { background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; }
+  .param-panel-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px; }
+  .param-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px 16px; }
+  .param-grid-2 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px 16px; }
+  .param-item { display: flex; flex-direction: column; gap: 6px; }
+  .param-label { font-size: 11px; color: var(--text2); font-weight: 500; display: flex; justify-content: space-between; }
+  .param-value { font-size: 11px; color: var(--amber); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--amber); cursor: pointer; height: 4px; }
+  input[type=range].green-range { accent-color: var(--green); }
+  input[type=range].purple-range { accent-color: var(--purple); }
+  .pad-selector { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .pad-sel-btn { padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface2); color: var(--text2); transition: all 0.1s; }
+  .pad-sel-btn:hover { color: var(--text); border-color: var(--border2); }
+  .pad-sel-btn.active { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .pad-sel-btn.active-purple { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
+  .pad-sel-btn.active-amber { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+  .no-sample-msg { font-size: 13px; color: var(--text3); padding: 20px; text-align: center; }
+
+  /* ── Slices panel ──────────────────────────────────────────────── */
+  .slice-timeline { position: relative; height: 64px; background: var(--surface3); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; border: 0.5px solid var(--border); cursor: default; }
+  .slice-waveform { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 2px; gap: 1px; }
+  .slice-bar { flex: 1; background: rgba(245,166,35,0.25); border-radius: 1px; transition: background 0.1s; }
+  .slice-marker { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(245,166,35,0.7); cursor: ew-resize; z-index: 2; }
+  .slice-marker:hover { background: var(--amber); }
+  .slice-marker.active-marker { background: var(--green); width: 2px; }
+  .slice-marker::after { content: attr(data-idx); position: absolute; top: 2px; left: 4px; font-size: 9px; color: var(--amber); font-weight: 700; white-space: nowrap; }
+  .slice-marker.active-marker::after { color: var(--green); }
+  .slice-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; margin-bottom: 12px; }
+  .slice-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; background: var(--surface2); border: 0.5px solid var(--border); font-size: 12px; }
+  .slice-row.active-slice { border-color: var(--green); background: var(--green-bg); }
+  .slice-idx { color: var(--text3); width: 24px; font-size: 11px; }
+  .slice-pos-val { color: var(--text); font-weight: 500; flex: 1; font-family: monospace; font-size: 12px; }
+  .slice-set-btn { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; cursor: pointer; border: 0.5px solid var(--green-border); background: var(--green-bg); color: var(--green); }
+  .slice-set-btn:hover { background: rgba(76,175,125,0.22); }
+
+  /* Instagram */
+  .ig-card { margin-top: auto; border-radius: var(--radius); border: 0.5px solid rgba(131,58,180,0.4); background: linear-gradient(135deg, rgba(131,58,180,0.15) 0%, rgba(253,29,29,0.1) 60%, rgba(252,176,69,0.12) 100%); padding: 14px 12px; text-align: center; cursor: pointer; transition: all 0.15s; text-decoration: none; display: block; }
+  .ig-card:hover { border-color: rgba(131,58,180,0.7); transform: translateY(-1px); }
+  .ig-icon { font-size: 22px; margin-bottom: 5px; }
+  .ig-handle { font-size: 13px; font-weight: 700; color: #f0f0f0; }
+  .ig-sub { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+  .ig-btn { display: inline-block; margin-top: 9px; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600; background: linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045); color: #fff; border: none; cursor: pointer; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: #333; color: var(--text); padding: 10px 20px; border-radius: var(--radius); font-size: 13px; border: 0.5px solid var(--border2); transition: transform 0.25s ease; z-index: 100; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(76,175,125,0.5); }
+  .toast.swap-done { border-color: var(--swap-border); }
+  .toast.error { border-color: var(--danger-border); }
+
+  /* ── Step event grid ─────────────────────────────────────────── */
+  .step-grid-wrap { margin-bottom: 20px; }
+  .step-grid-pad-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .step-grid-pad-title span { color: var(--amber); font-size: 11px; font-weight: 400; }
+  .step-grid { display: grid; gap: 3px; margin-bottom: 8px; }
+  .step-num { font-size: 9px; color: var(--text3); text-align: center; padding-bottom: 2px; font-weight: 600; }
+  .step-num.beat-label { color: rgba(245,166,35,0.8); }
+  .step-cell { border-radius: 4px; min-height: 28px; border: 0.5px solid var(--border); background: var(--surface2); overflow: hidden; }
+  .step-cell.beat-1 { background: rgba(245,166,35,0.08); border-color: rgba(245,166,35,0.3); border-left: 2px solid rgba(245,166,35,0.6); }
+  .step-cell.beat-2 { background: rgba(245,166,35,0.03); }
+  .bar-label-row { display: flex; gap: 3px; margin-bottom: 1px; }
+  .bar-label { flex: 1; font-size: 9px; color: rgba(245,166,35,0.45); font-weight: 700; padding-left: 2px; }
+  .ev-pill { display: inline-flex; align-items: center; gap: 2px; margin: 2px; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; background: var(--amber-bg); border: 0.5px solid var(--amber-border); color: var(--amber); cursor: pointer; user-select: none; transition: all 0.1s; white-space: nowrap; }
+  .ev-pill:hover { background: rgba(245,166,35,0.25); }
+  .ev-pill.selected-ev { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); text-decoration: line-through; }
+  /* MIDI modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: center; justify-content: center; }
+  .modal { background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius-lg); padding: 24px; width: 520px; max-width: 95vw; max-height: 80vh; overflow-y: auto; }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .modal-sub { font-size: 12px; color: var(--text2); margin-bottom: 20px; }
+  .modal-close { float: right; background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; }
+  .modal-close:hover { color: var(--text); }
+  .midi-pad-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .midi-pad-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius); background: var(--surface2); border: 0.5px solid var(--border); }
+  .midi-pad-row.no-events { opacity: 0.4; }
+  .midi-pad-name { font-size: 13px; font-weight: 600; min-width: 48px; }
+  .midi-pad-sample { font-size: 11px; color: var(--amber); flex: 1; }
+  .midi-pad-count { font-size: 11px; color: var(--text3); min-width: 60px; text-align: right; }
+  .midi-dl-btn { padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 0.5px solid var(--green-border); background: var(--green-bg); color: var(--green); }
+  .midi-dl-btn:hover { background: rgba(76,175,125,0.22); }
+  .midi-dl-btn:disabled { opacity: 0.3; cursor: default; }
+  .modal-all-btn { width: 100%; padding: 9px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--amber-border); background: var(--amber-bg); color: var(--amber); margin-bottom: 16px; }
+  .modal-all-btn:hover { background: rgba(245,166,35,0.2); }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="titlebar-dots">
+    <div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div>
+  </div>
+  <div class="titlebar-title">Nanobox Preset Editor</div>
+  <div class="titlebar-logo">tangerine</div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div>
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">🗂</div>
+        <div class="drop-label" id="dropLabel">Drop preset.xml here<br>or click to browse</div>
+        <div class="drop-filename" id="dropFilename"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".xml">
+  <input type="file" id="folderInput" webkitdirectory style="display:none">
+    </div>
+    <div id="sidebarMeta" style="display:none">
+      <div class="section-header">Preset info</div>
+      <div class="info-chips" id="infoChips"></div>
+    </div>
+    <div id="sidebarSeq" style="display:none">
+      <div class="section-header">Sequences</div>
+      <div class="seq-grid" id="seqGrid"></div>
+      <div style="margin-top:8px; font-size:11px; color:var(--text3);">● = has note data</div>
+    </div>
+    <div style="flex:1"></div>
+    <a class="ig-card" href="https://www.instagram.com/larrydekat" target="_blank" onclick="openLink('https://www.instagram.com/larrydekat'); return false;">
+      <div class="ig-icon">📸</div>
+      <div class="ig-handle">@larrydekat</div>
+      <div class="ig-sub">Made by Larry de Kat</div>
+      <div class="ig-btn">Follow on Instagram</div>
+    </a>
+  </div>
+
+  <div class="main">
+    <div class="main-empty" id="emptyState">
+      <div class="big-icon">🎹</div>
+      <p>Load a preset.xml file to get started. Select a sequence, then choose what to edit.</p>
+    </div>
+    <div id="editorArea" style="display:none"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function openLink(url) { try { window.open(url, '_blank'); } catch(e) {} }
+
+const PAD_MAP = [
+  { name:'Pad 1', note:'C2',  midi:36, chan:256, row:0, col:0 },
+  { name:'Pad 2', note:'C#2', midi:37, chan:257, row:0, col:1 },
+  { name:'Pad 3', note:'D2',  midi:38, chan:258, row:0, col:2 },
+  { name:'Pad 4', note:'D#2', midi:39, chan:259, row:0, col:3 },
+  { name:'Pad 5', note:'E2',  midi:40, chan:260, row:1, col:0 },
+  { name:'Pad 6', note:'F2',  midi:41, chan:261, row:1, col:1 },
+  { name:'Pad 7', note:'F#2', midi:42, chan:262, row:1, col:2 },
+  { name:'Pad 8', note:'G2',  midi:43, chan:263, row:1, col:3 },
+];
+
+let xmlDoc = null, originalFilename = 'preset.xml';
+let fileHandle = null; // FileSystemFileHandle when available
+let dirHandle  = null; // FileSystemDirectoryHandle (Chrome only)
+let audioFileMap = {}; // basename → File, populated from folder picker (Safari)
+let currentSeqIdx = null, mode = 'delete';
+let selectedPads = new Set();
+let swapFirst = null;
+let deleteView = 'pads', selectedEvents = new Set();
+let activePadIdx = 0; // for settings/envelope/slices tabs
+let copySelectedPads = new Set(), copyTargetSeqs = new Set(), copyMerge = false;
+
+// ── File loading ──────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', async () => {
+  if (window.showOpenFilePicker) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: 'XML files', accept: { 'application/xml': ['.xml'], 'text/xml': ['.xml'] } }],
+        multiple: false
+      });
+      fileHandle = handle;
+      loadFile(await handle.getFile());
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  fileInput.click();
+});
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', async e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const item = e.dataTransfer.items?.[0];
+  if (item?.getAsFileSystemHandle) {
+    try {
+      const handle = await item.getAsFileSystemHandle();
+      if (handle.kind === 'file') { fileHandle = handle; loadFile(await handle.getFile()); return; }
+    } catch(e) {}
+  }
+  fileHandle = null;
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) { fileHandle = null; loadFile(fileInput.files[0]); } });
+
+function loadFile(file) {
+  originalFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const parser = new DOMParser();
+    xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+    if (xmlDoc.querySelector('parsererror')) { showToast('Failed to parse XML', 'error'); return; }
+    document.getElementById('dropFilename').textContent = file.name;
+    document.getElementById('dropLabel').textContent = 'Loaded:';
+    dropZone.classList.add('loaded');
+    currentSeqIdx = null; selectedPads.clear(); swapFirst = null;
+    buildSidebar();
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('editorArea').style.display = 'block';
+    renderSeqPrompt();
+  };
+  reader.readAsText(file);
+}
+
+// ── XML helpers ───────────────────────────────────────────────────
+function getSeqCell(idx) {
+  for (const c of xmlDoc.querySelectorAll('cell[type="noteseq"]'))
+    if (parseInt(c.getAttribute('seqsublayer')) === idx) return c;
+  return null;
+}
+function getSampleCell(padIdx) {
+  const p = PAD_MAP[padIdx];
+  for (const c of xmlDoc.querySelectorAll('cell[type="sample"]'))
+    if (parseInt(c.getAttribute('row')) === p.row && parseInt(c.getAttribute('column')) === p.col) return c;
+  return null;
+}
+function getSampleName(padIdx) {
+  const c = getSampleCell(padIdx);
+  return c ? (c.getAttribute('filename')||'').replace(/^.*[\\/]/,'').replace(/\.wav$/i,'') : null;
+}
+function getSampleParam(padIdx, attr) {
+  const c = getSampleCell(padIdx);
+  return c ? c.querySelector('params')?.getAttribute(attr) : null;
+}
+function setSampleParam(padIdx, attr, val) {
+  const c = getSampleCell(padIdx);
+  if (c) c.querySelector('params')?.setAttribute(attr, String(val));
+}
+function countSeqEvents(cell, chan) { return cell ? cell.querySelectorAll(`seqevent[chan="${chan}"]`).length : 0; }
+function totalEvents(cell) { return cell ? cell.querySelectorAll('seqevent').length : 0; }
+function countActivePads(cell) { return PAD_MAP.filter(p => countSeqEvents(cell, p.chan) > 0).length; }
+
+// ── Sidebar ───────────────────────────────────────────────────────
+function buildSidebar() {
+  const songCell = xmlDoc.querySelector('cell[type="song"]');
+  const params = songCell?.querySelector('params');
+  document.getElementById('infoChips').innerHTML =
+    `<div class="chip">BPM: <strong>${params?.getAttribute('globtempo')||'?'}</strong></div>
+     <div class="chip">Swing: <strong>${params?.getAttribute('swing')||'?'}</strong></div>`;
+  document.getElementById('sidebarMeta').style.display = 'block';
+  const grid = document.getElementById('seqGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const ev = totalEvents(getSeqCell(i));
+    const btn = document.createElement('button');
+    btn.className = 'seq-btn ' + (ev > 0 ? 'has-notes' : 'empty');
+    btn.textContent = 'S'+(i+1); btn.dataset.idx = i;
+    btn.addEventListener('click', () => selectSeq(i));
+    grid.appendChild(btn);
+  }
+  document.getElementById('sidebarSeq').style.display = 'block';
+}
+
+function selectSeq(idx) {
+  currentSeqIdx = idx; selectedPads.clear(); swapFirst = null; selectedEvents.clear(); deleteView = 'pads';
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === idx));
+  renderEditor();
+}
+
+function renderSeqPrompt() {
+  document.getElementById('editorArea').innerHTML =
+    `<div class="main-empty"><div class="big-icon">🎼</div><p>Select a sequence from the left panel to begin editing.</p></div>`;
+}
+
+// ── Pad grid (shared) ─────────────────────────────────────────────
+function renderPadGrid(activeCls) {
+  const cell = getSeqCell(currentSeqIdx);
+  let html = '';
+  [[4,8],[0,4]].forEach(([from,to]) => {
+    const label = from === 4 ? 'Pads 5–8 (upper row)' : 'Pads 1–4 (lower row)';
+    let cards = '';
+    for (let i = from; i < to; i++) {
+      const pad = PAD_MAP[i];
+      const count = countSeqEvents(cell, pad.chan);
+      const sample = getSampleName(i);
+      const extraCls = activeCls(i, count);
+      cards += `<div class="pad-card ${count>0?'has-notes':'no-notes'} ${extraCls}" data-pad="${i}" id="padcard-${i}" onclick="handlePadClick(${i})">
+        <div class="pad-name">${pad.name}</div>
+        <div class="pad-sample">${sample||'no sample'}</div>
+        <div class="pad-note-name">${pad.note}</div>
+        <div class="pad-count"><span class="${count===0?'zero':'ev'}">${count>0?count+' events':'—'}</span></div>
+      </div>`;
+    }
+    html += `<div class="row-label">${label}</div><div class="pad-grid">${cards}</div>`;
+  });
+  return html;
+}
+
+// ── Main render ───────────────────────────────────────────────────
+function renderEditor() {
+  const cell = getSeqCell(currentSeqIdx);
+  const seqName = 'S'+(currentSeqIdx+1);
+  const tabs = [
+    { id:'delete',   label:'🗑 Delete notes',   cls:'active-delete' },
+    { id:'swap',     label:'⇄ Swap pads',        cls:'active-swap' },
+    { id:'settings', label:'⚙ Settings',         cls:'active-settings' },
+    { id:'envelope', label:'◈ Envelope',          cls:'active-envelope' },
+    { id:'slices',   label:'✂ Slices',            cls:'active-slices' },
+    { id:'copy',     label:'📋 Copy to seq',       cls:'active-copy' },
+  ];
+  const tabHtml = tabs.map(t =>
+    `<button class="mode-tab ${mode===t.id?t.cls:''}" onclick="setMode('${t.id}')">${t.label}</button>`
+  ).join('');
+
+  document.getElementById('editorArea').innerHTML = `
+    <div class="seq-info">
+      <div class="seq-info-title">Sequence ${seqName}</div>
+      <div class="seq-info-meta">
+        <div class="seq-meta-item">Events: <strong>${totalEvents(cell)}</strong></div>
+        <div class="seq-meta-item">Active pads: <strong>${countActivePads(cell)}</strong></div>
+      </div>
+    </div>
+    <div class="mode-tabs">${tabHtml}</div>
+    <div id="modeContent"></div>
+    <div class="action-bar">
+      <div id="actionButtons"></div>
+      <button class="btn" onclick="showMidiExport()">🎼 Export MIDI</button>
+      <button class="btn btn-primary" onclick="downloadXML()">Download XML</button>
+    </div>`;
+
+  renderModeContent();
+}
+
+function setMode(m) {
+  mode = m; selectedPads.clear(); swapFirst = null; selectedEvents.clear(); deleteView = 'pads';
+  copySelectedPads.clear(); copyTargetSeqs.clear();
+  renderEditor();
+}
+
+function renderModeContent() {
+  const c = document.getElementById('modeContent');
+  if (!c) return;
+  if (mode === 'delete')   { c.innerHTML = renderDeletePanel();   renderActionButtons(); }
+  if (mode === 'swap')     { c.innerHTML = renderSwapPanel();     renderActionButtons(); }
+  if (mode === 'settings') { c.innerHTML = renderSettingsPanel(); renderActionButtons(); }
+  if (mode === 'envelope') { c.innerHTML = renderEnvelopePanel(); renderActionButtons(); }
+  if (mode === 'slices')   {
+    c.innerHTML = renderSlicesPanel(); renderActionButtons();
+    const slicesEls = getSampleCell(activePadIdx) ? [...getSampleCell(activePadIdx).querySelectorAll('slice')] : [];
+    const slicePositions = slicesEls.map(s => parseInt(s.getAttribute('pos')||0));
+    const samlen = parseInt(getSampleParam(activePadIdx,'samlen')||1);
+    drawSampleWaveform(activePadIdx, 'waveformCanvas', slicePositions, samlen);
+  }
+  if (mode === 'copy')     { c.innerHTML = renderCopyPanel();     renderActionButtons(); }
+}
+
+// ── DELETE ────────────────────────────────────────────────────────
+function renderDeletePanel() {
+  if (deleteView === 'events') return renderEventGridPanel();
+  const padGrid = renderPadGrid((i, count) => selectedPads.has(i) ? 'selected-delete' : '');
+  return `<div class="select-row">
+    <button class="btn-sm" onclick="selectAllWithNotes()">Select all with notes</button>
+    <button class="btn-sm" onclick="clearSelection()">Clear selection</button>
+    <button class="btn-sm" style="margin-left:auto;border-color:var(--amber-border);color:var(--amber)" onclick="deleteView='events';renderModeContent()">✦ Per event →</button>
+  </div>
+  <div class="pad-section">${padGrid}</div>`;
+}
+function handlePadClick(i) {
+  if (mode==='delete')   toggleDeletePad(i);
+  else if (mode==='swap') handleSwapClick(i);
+  else if (mode==='copy')   toggleCopyPad(i);
+  else if (mode==='settings'||mode==='envelope'||mode==='slices') selectActivePad(i);
+}
+function toggleDeletePad(idx) {
+  const cell = getSeqCell(currentSeqIdx);
+  if (countSeqEvents(cell, PAD_MAP[idx].chan) === 0) return;
+  if (selectedPads.has(idx)) selectedPads.delete(idx); else selectedPads.add(idx);
+  document.getElementById('padcard-'+idx)?.classList.toggle('selected-delete', selectedPads.has(idx));
+  renderActionButtons();
+}
+function selectAllWithNotes() {
+  const cell = getSeqCell(currentSeqIdx);
+  PAD_MAP.forEach((p,i) => { if (countSeqEvents(cell, p.chan)>0) { selectedPads.add(i); document.getElementById('padcard-'+i)?.classList.add('selected-delete'); } });
+  renderActionButtons();
+}
+function clearSelection() {
+  selectedPads.clear();
+  document.querySelectorAll('.pad-card').forEach(el => el.classList.remove('selected-delete'));
+  renderActionButtons();
+}
+function deleteSelected() {
+  const cell = getSeqCell(currentSeqIdx);
+  let removed = 0;
+  selectedPads.forEach(idx => { [...cell.querySelectorAll(`seqevent[chan="${PAD_MAP[idx].chan}"]`)].forEach(ev => { ev.parentNode.removeChild(ev); removed++; }); });
+  selectedPads.clear(); buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx)===currentSeqIdx));
+  renderEditor();
+  showToast(`Removed ${removed} event${removed!==1?'s':''} from S${currentSeqIdx+1}`, 'success');
+}
+
+// ── SWAP ──────────────────────────────────────────────────────────
+function renderSwapPanel() {
+  const padGrid = renderPadGrid((i) => swapFirst===i ? 'swap-first' : '');
+  return `<div class="swap-scope">
+    <div class="swap-scope-title">What to swap</div>
+    <label><input type="checkbox" id="swapNotes" checked> Sequence notes</label>
+    <label><input type="checkbox" id="swapSample" checked> Audio sample + settings</label>
+  </div>
+  <div class="swap-hint" id="swapHint">Click the first pad to swap.</div>
+  <div class="pad-section">${padGrid}</div>`;
+}
+function handleSwapClick(padIdx) {
+  if (!swapFirst) {
+    swapFirst = padIdx;
+    document.querySelectorAll('.pad-card').forEach(el => { el.classList.remove('swap-first'); el.querySelector('.swap-badge')?.remove(); });
+    const el = document.getElementById('padcard-'+padIdx);
+    if (el) { el.classList.add('swap-first'); const b=document.createElement('span'); b.className='swap-badge'; b.textContent='1st'; el.appendChild(b); }
+    updateSwapHint();
+  } else {
+    if (swapFirst===padIdx) { swapFirst=null; document.querySelectorAll('.pad-card').forEach(el=>{el.classList.remove('swap-first');el.querySelector('.swap-badge')?.remove();}); updateSwapHint(); return; }
+    performSwap(swapFirst, padIdx);
+  }
+}
+function performSwap(idxA, idxB) {
+  const doNotes  = document.getElementById('swapNotes')?.checked !== false;
+  const doSample = document.getElementById('swapSample')?.checked !== false;
+  const padA = PAD_MAP[idxA], padB = PAD_MAP[idxB];
+  const parts = [];
+  if (doNotes) {
+    xmlDoc.querySelectorAll('cell[type="noteseq"]').forEach(sc => {
+      const eA=[...sc.querySelectorAll(`seqevent[chan="${padA.chan}"]`)];
+      const eB=[...sc.querySelectorAll(`seqevent[chan="${padB.chan}"]`)];
+      eA.forEach(ev=>ev.setAttribute('chan',String(padB.chan)));
+      eB.forEach(ev=>ev.setAttribute('chan',String(padA.chan)));
+    });
+    parts.push('notes');
+  }
+  if (doSample) {
+    const cA=getSampleCell(idxA), cB=getSampleCell(idxB);
+    if (cA&&cB) { const[rA,cAc]=[cA.getAttribute('row'),cA.getAttribute('column')]; cA.setAttribute('row',cB.getAttribute('row')); cA.setAttribute('column',cB.getAttribute('column')); cB.setAttribute('row',rA); cB.setAttribute('column',cAc); parts.push('sample'); }
+    else if (cA||cB) { const ex=cA||cB, tp=cA?padB:padA; ex.setAttribute('row',String(tp.row)); ex.setAttribute('column',String(tp.col)); parts.push('sample'); }
+  }
+  showToast(`Swapped ${padA.name} ⇄ ${padB.name}: ${parts.join(' & ')||'nothing'}`, 'swap-done');
+  swapFirst=null; buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.idx)===currentSeqIdx));
+  renderEditor();
+}
+function updateSwapHint() {
+  const h=document.getElementById('swapHint'); if(!h)return;
+  h.textContent = swapFirst===null ? 'Click the first pad to swap.' : `${PAD_MAP[swapFirst].name} selected. Now click the second pad.`;
+}
+function cancelSwap() {
+  swapFirst=null;
+  document.querySelectorAll('.pad-card').forEach(el=>{el.classList.remove('swap-first');el.querySelector('.swap-badge')?.remove();});
+  updateSwapHint();
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────
+function selectActivePad(idx) {
+  activePadIdx = idx;
+  renderModeContent();
+}
+
+function padSelectorHtml(activeCls) {
+  return `<div class="pad-selector">${PAD_MAP.map((p,i)=>`<button class="pad-sel-btn ${i===activePadIdx?activeCls:''}" onclick="selectActivePad(${i})">${p.name}<br><span style="font-size:10px;font-weight:400;color:var(--text3)">${getSampleName(i)||'—'}</span></button>`).join('')}</div>`;
+}
+
+function renderSettingsPanel() {
+  const cell = getSampleCell(activePadIdx);
+  if (!cell) return padSelectorHtml('active') + `<div class="no-sample-msg">No sample on this pad.</div>`;
+
+  const gain   = parseInt(getSampleParam(activePadIdx,'gaindb')||0);
+  const pan    = parseInt(getSampleParam(activePadIdx,'panpos')||0);
+  const cutoff = parseInt(getSampleParam(activePadIdx,'dualfilcutoff')||0);
+  const res    = parseInt(getSampleParam(activePadIdx,'res')||0);
+
+  // gaindb range roughly -6000 to 12000, display as 0-100
+  const gainPct = Math.round(((gain + 6000) / 18000) * 100);
+  // pan -1000 to 1000
+  const panDisp = Math.round(pan / 10); // -100 to 100
+  // cutoff -1000 to 1000
+  const cutDisp = Math.round(((cutoff + 1000) / 2000) * 100);
+  // res 0 to 1000
+  const resDisp = Math.round(res / 10);
+
+  return padSelectorHtml('active') + `
+  <div class="param-panel">
+    <div class="param-panel-title">Mix</div>
+    <div class="param-grid">
+      <div class="param-item">
+        <div class="param-label">Volume <span class="param-value" id="val-gain">${gainPct}</span></div>
+        <input type="range" class="green-range" min="0" max="100" value="${gainPct}" oninput="onParam('gaindb', Math.round((this.value/100)*18000-6000)); document.getElementById('val-gain').textContent=this.value">
+      </div>
+      <div class="param-item">
+        <div class="param-label">Panning <span class="param-value" id="val-pan">${panDisp>0?'+'+panDisp:panDisp}</span></div>
+        <input type="range" class="green-range" min="-100" max="100" value="${panDisp}" oninput="onParam('panpos', this.value*10); document.getElementById('val-pan').textContent=(this.value>0?'+':'')+this.value">
+      </div>
+      <div class="param-item">
+        <div class="param-label">Filter cutoff <span class="param-value" id="val-cut">${cutDisp}</span></div>
+        <input type="range" class="green-range" min="0" max="100" value="${cutDisp}" oninput="onParam('dualfilcutoff', Math.round((this.value/100)*2000-1000)); document.getElementById('val-cut').textContent=this.value">
+      </div>
+      <div class="param-item">
+        <div class="param-label">Resonance <span class="param-value" id="val-res">${resDisp}</span></div>
+        <input type="range" class="green-range" min="0" max="100" value="${resDisp}" oninput="onParam('res', this.value*10); document.getElementById('val-res').textContent=this.value">
+      </div>
+    </div>
+  </div>`;
+}
+
+function onParam(attr, val) {
+  setSampleParam(activePadIdx, attr, Math.round(val));
+}
+
+// ── ENVELOPE ──────────────────────────────────────────────────────
+function renderEnvelopePanel() {
+  const cell = getSampleCell(activePadIdx);
+  if (!cell) return padSelectorHtml('active-purple') + `<div class="no-sample-msg">No sample on this pad.</div>`;
+
+  const atk = parseInt(getSampleParam(activePadIdx,'envattack')||0);
+  const dec = parseInt(getSampleParam(activePadIdx,'envdecay')||0);
+  const sus = parseInt(getSampleParam(activePadIdx,'envsus')||1000);
+  const rel = parseInt(getSampleParam(activePadIdx,'envrel')||200);
+  const vel = parseInt(getSampleParam(activePadIdx,'velamount')||0);
+
+  // All 0–1000
+  function pct(v) { return Math.round(v/10); }
+
+  return padSelectorHtml('active-purple') + `
+  <div class="param-panel">
+    <div class="param-panel-title">Envelope</div>
+    <div class="param-grid-2">
+      <div class="param-item">
+        <div class="param-label">Attack <span class="param-value" id="val-atk">${pct(atk)}</span></div>
+        <input type="range" class="purple-range" min="0" max="100" value="${pct(atk)}" oninput="onParam('envattack',this.value*10); document.getElementById('val-atk').textContent=this.value">
+      </div>
+      <div class="param-item">
+        <div class="param-label">Decay <span class="param-value" id="val-dec">${pct(dec)}</span></div>
+        <input type="range" class="purple-range" min="0" max="100" value="${pct(dec)}" oninput="onParam('envdecay',this.value*10); document.getElementById('val-dec').textContent=this.value">
+      </div>
+      <div class="param-item">
+        <div class="param-label">Sustain <span class="param-value" id="val-sus">${pct(sus)}</span></div>
+        <input type="range" class="purple-range" min="0" max="100" value="${pct(sus)}" oninput="onParam('envsus',this.value*10); document.getElementById('val-sus').textContent=this.value">
+      </div>
+      <div class="param-item">
+        <div class="param-label">Release <span class="param-value" id="val-rel">${pct(rel)}</span></div>
+        <input type="range" class="purple-range" min="0" max="100" value="${pct(rel)}" oninput="onParam('envrel',this.value*10); document.getElementById('val-rel').textContent=this.value">
+      </div>
+      <div class="param-item" style="grid-column:span 2">
+        <div class="param-label">Velocity amount <span class="param-value" id="val-vel">${pct(vel)}</span></div>
+        <input type="range" class="purple-range" min="0" max="100" value="${pct(vel)}" oninput="onParam('velamount',this.value*10); document.getElementById('val-vel').textContent=this.value">
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── SLICES ────────────────────────────────────────────────────────
+async function requestDirAccess() {
+  // Try the modern API first (Chrome); fall back to <input webkitdirectory> for Safari
+  if (window.showDirectoryPicker) {
+    try {
+      dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+      showToast('Folder access granted — loading waveform…', 'success');
+      if (mode === 'slices') renderModeContent();
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; /* else fall through */ }
+  }
+  document.getElementById('folderInput').click();
+}
+
+document.getElementById('folderInput').addEventListener('change', function() {
+  audioFileMap = {};
+  [...this.files].forEach(f => { audioFileMap[f.name] = f; });
+  const count = Object.keys(audioFileMap).length;
+  showToast(`Loaded ${count} file${count!==1?'s':''} from folder`, 'success');
+  if (mode === 'slices') renderModeContent();
+  this.value = ''; // reset so re-selecting same folder works
+});
+
+async function drawSampleWaveform(padIdx, canvasId, slicePositions, samlen) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const hasAccess = dirHandle || Object.keys(audioFileMap).length > 0;
+  if (!hasAccess) {
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Grant folder access to see the real waveform', W/2, H/2);
+    return;
+  }
+
+  const cellEl = getSampleCell(padIdx);
+  const rawPath = cellEl?.getAttribute('filename') || '';
+  const basename = rawPath.replace(/^.*[\\/]/, '');
+  if (!basename) return;
+
+  try {
+    let file;
+    if (dirHandle) {
+      const fh = await dirHandle.getFileHandle(basename);
+      file = await fh.getFile();
+    } else {
+      file = audioFileMap[basename];
+      if (!file) throw new Error('File not found in loaded folder: ' + basename);
+    }
+    const ab = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded = await audioCtx.decodeAudioData(ab);
+    audioCtx.close();
+
+    const data = decoded.getChannelData(0);
+    const step = Math.max(1, Math.ceil(data.length / W));
+
+    // Background
+    ctx.fillStyle = 'rgba(245,166,35,0.07)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Waveform
+    ctx.strokeStyle = 'rgba(245,166,35,0.75)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < W; x++) {
+      let min = 1, max = -1;
+      for (let j = 0; j < step; j++) {
+        const v = data[x * step + j] || 0;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const yTop = ((1 - max) / 2) * H;
+      const yBot = ((1 - min) / 2) * H;
+      if (x === 0) ctx.moveTo(x, yTop); else ctx.lineTo(x, yTop);
+      ctx.lineTo(x, yBot);
+    }
+    ctx.stroke();
+
+    // Centre line
+    ctx.strokeStyle = 'rgba(245,166,35,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+
+    // Slice markers
+    const actSlice = parseInt(getSampleParam(padIdx, 'actslice') || 0);
+    slicePositions.forEach((pos, i) => {
+      const x = Math.round((pos / samlen) * W);
+      const isAct = i === actSlice;
+      ctx.strokeStyle = isAct ? '#4caf7d' : 'rgba(245,166,35,0.9)';
+      ctx.lineWidth = isAct ? 2.5 : 1.5;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      ctx.fillStyle = isAct ? '#4caf7d' : 'rgba(245,166,35,0.9)';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(i, x + 3, 13);
+    });
+  } catch(e) {
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,80,80,0.5)';
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Could not load: ' + basename, W/2, H/2);
+  }
+}
+
+function renderSlicesPanel() {
+  const cell = getSampleCell(activePadIdx);
+  if (!cell) return padSelectorHtml('active-amber') + `<div class="no-sample-msg">No sample on this pad.</div>`;
+
+  const slices = [...cell.querySelectorAll('slice')];
+  const samlen = parseInt(getSampleParam(activePadIdx,'samlen')||1);
+  const actSlice = parseInt(getSampleParam(activePadIdx,'actslice')||0);
+  const sampleName = getSampleName(activePadIdx) || 'Sample';
+
+  if (slices.length === 0) return padSelectorHtml('active-amber') + `<div class="no-sample-msg">No slices on ${sampleName}.</div>`;
+
+  const folderName = dirHandle?.name || (Object.keys(audioFileMap).length ? `${Object.keys(audioFileMap).length} files loaded` : null);
+  const dirBtn = folderName
+    ? `<span style="font-size:10px;color:var(--green)">📁 ${folderName}</span>`
+    : `<button class="btn-sm" style="border-color:var(--amber-border);color:var(--amber)" onclick="requestDirAccess()">📁 Select preset folder for waveforms</button>`;
+
+  // Slice list
+  const listRows = slices.map((s,i) => {
+    const pos = parseInt(s.getAttribute('pos')||0);
+    const isActive = i === actSlice;
+    return `<div class="slice-row ${isActive?'active-slice':''}" id="slicerow-${i}">
+      <span class="slice-idx">#${i}</span>
+      <span class="slice-pos-val">${pos.toLocaleString()} <span style="color:var(--text3);font-size:10px">samples</span></span>
+      <span style="color:var(--text3);font-size:10px">${(pos/samlen*100).toFixed(1)}%</span>
+      <button class="slice-set-btn" onclick="setActiveSlice(${i})">Set active</button>
+    </div>`;
+  }).join('');
+
+  return padSelectorHtml('active-amber') + `
+  <div class="param-panel">
+    <div class="param-panel-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>${sampleName} — ${slices.length} slices — active: <span style="color:var(--green)">#${actSlice}</span></span>
+      ${dirBtn}
+    </div>
+    <canvas id="waveformCanvas" width="900" height="90" style="width:100%;height:90px;border-radius:6px;display:block;margin-bottom:10px;cursor:default"></canvas>
+    <div class="slice-list">${listRows}</div>
+  </div>`;
+}
+
+function setActiveSlice(idx) {
+  setSampleParam(activePadIdx, 'actslice', idx);
+  renderModeContent();
+  showToast(`Active slice set to #${idx}`, 'success');
+}
+
+// ── Action buttons ─────────────────────────────────────────────────
+function renderActionButtons() {
+  const c = document.getElementById('actionButtons'); if(!c) return;
+  if (mode==='delete') {
+    if (deleteView === 'events')
+      c.innerHTML = `<button class="btn btn-danger" ${selectedEvents.size===0?'disabled':''} onclick="deleteSelectedEvents()">🗑 Verwijder ${selectedEvents.size} event${selectedEvents.size!==1?'s':''}</button>`;
+    else
+      c.innerHTML = `<button class="btn btn-danger" ${selectedPads.size===0?'disabled':''} onclick="deleteSelected()">Delete selected notes</button>`;
+  } else if (mode==='swap') {
+    c.innerHTML = `<button class="btn btn-swap" onclick="cancelSwap()">Cancel swap</button>`;
+  } else if (mode==='copy') {
+    const canCopy = copySelectedPads.size > 0 && copyTargetSeqs.size > 0;
+    c.innerHTML = `<button class="btn" style="background:var(--copy-bg);border-color:var(--copy-border);color:var(--copy)" ${canCopy?'':'disabled'} onclick="performCopy()">
+      📋 Copy ${copySelectedPads.size} pad${copySelectedPads.size!==1?'s':''} → ${copyTargetSeqs.size} sequence${copyTargetSeqs.size!==1?'s':''}
+    </button>`;
+  } else { c.innerHTML = ''; }
+}
+
+// ── COPY TO SEQUENCES ─────────────────────────────────────────────
+function renderCopyPanel() {
+  const cell = getSeqCell(currentSeqIdx);
+  const padGrid = renderPadGrid((i, count) => copySelectedPads.has(i) ? 'selected-copy' : '');
+
+  // Build target sequence grid (all 16 except current)
+  let seqButtons = '';
+  for (let i = 0; i < 16; i++) {
+    const isCurrent = i === currentSeqIdx;
+    const ev = totalEvents(getSeqCell(i));
+    const isTarget = copyTargetSeqs.has(i);
+    if (isCurrent) {
+      seqButtons += `<button class="seq-btn active" style="cursor:default" title="Current sequence (source)">S${i+1}</button>`;
+    } else {
+      seqButtons += `<button class="seq-btn ${isTarget ? 'copy-target' : ''} ${ev > 0 ? 'has-notes' : 'empty'}" onclick="toggleCopyTarget(${i})" title="S${i+1}${ev>0?' (has notes)':''}">S${i+1}</button>`;
+    }
+  }
+
+  return `
+  <div class="swap-scope">
+    <div class="swap-scope-title">Copy mode</div>
+    <label><input type="radio" name="cpMode" ${!copyMerge?'checked':''} onchange="copyMerge=false"> <strong>Overwrite</strong> — replace existing events on target pads</label>
+    <label><input type="radio" name="cpMode" ${copyMerge?'checked':''} onchange="copyMerge=true"> <strong>Merge</strong> — keep existing events, add on top</label>
+  </div>
+  <div class="swap-hint" style="background:var(--copy-bg);border-color:var(--copy-border);color:var(--copy)">
+    Step 1: select pads to copy from <strong>S${currentSeqIdx+1}</strong> below. Step 2: pick target sequences.
+  </div>
+  <div class="select-row">
+    <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Pads to copy (source: S${currentSeqIdx+1})</span>
+    <button class="btn-sm" onclick="selectAllCopyWithNotes()">All with notes</button>
+    <button class="btn-sm" onclick="copySelectedPads.clear();renderModeContent()">Clear</button>
+  </div>
+  <div class="pad-section">${padGrid}</div>
+  <div class="section-header" style="margin-top:8px;margin-bottom:8px">Target sequences <span style="font-size:10px;font-weight:400;color:var(--text3);text-transform:none">(● = has notes, teal = selected)</span></div>
+  <div class="seq-grid" style="margin-bottom:8px">${seqButtons}</div>
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="btn-sm" onclick="copyTargetSeqs.clear();[...Array(16).keys()].filter(i=>i!==currentSeqIdx).forEach(i=>copyTargetSeqs.add(i));renderModeContent()">Select all</button>
+    <button class="btn-sm" onclick="copyTargetSeqs.clear();renderModeContent()">Clear</button>
+  </div>`;
+}
+
+function toggleCopyPad(idx) {
+  const cell = getSeqCell(currentSeqIdx);
+  if (countSeqEvents(cell, PAD_MAP[idx].chan) === 0) return; // nothing to copy
+  if (copySelectedPads.has(idx)) copySelectedPads.delete(idx); else copySelectedPads.add(idx);
+  document.getElementById('padcard-'+idx)?.classList.toggle('selected-copy', copySelectedPads.has(idx));
+  renderActionButtons();
+}
+
+function selectAllCopyWithNotes() {
+  const cell = getSeqCell(currentSeqIdx);
+  PAD_MAP.forEach((p, i) => { if (countSeqEvents(cell, p.chan) > 0) copySelectedPads.add(i); });
+  renderModeContent();
+}
+
+function toggleCopyTarget(seqIdx) {
+  if (copyTargetSeqs.has(seqIdx)) copyTargetSeqs.delete(seqIdx); else copyTargetSeqs.add(seqIdx);
+  renderModeContent();
+}
+
+function performCopy() {
+  if (copySelectedPads.size === 0 || copyTargetSeqs.size === 0) return;
+  const srcCell = getSeqCell(currentSeqIdx);
+  if (!srcCell) return;
+
+  let totalCopied = 0;
+  copyTargetSeqs.forEach(tgtIdx => {
+    const tgtCell = getSeqCell(tgtIdx);
+    if (!tgtCell) return;
+    copySelectedPads.forEach(padIdx => {
+      const chan = PAD_MAP[padIdx].chan;
+      // Overwrite: remove existing events on this pad in target
+      if (!copyMerge) {
+        [...tgtCell.querySelectorAll(`seqevent[chan="${chan}"]`)].forEach(ev => ev.parentNode.removeChild(ev));
+      }
+      // Deep-clone source events into target
+      const srcEvs = [...srcCell.querySelectorAll(`seqevent[chan="${chan}"]`)];
+      srcEvs.forEach(ev => {
+        const clone = ev.cloneNode(true);
+        tgtCell.appendChild(clone);
+        totalCopied++;
+      });
+    });
+  });
+
+  buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx));
+  const padNames = [...copySelectedPads].map(i => PAD_MAP[i].name).join(', ');
+  const seqNames = [...copyTargetSeqs].map(i => 'S'+(i+1)).join(', ');
+  showToast(`Copied ${padNames} → ${seqNames} (${totalCopied} events, ${copyMerge?'merged':'overwrite'})`, 'success');
+  copySelectedPads.clear(); copyTargetSeqs.clear();
+  renderModeContent();
+}
+
+// ── Download / Save ────────────────────────────────────────────────
+async function downloadXML() {
+  if (!xmlDoc) return;
+  const out = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(xmlDoc.documentElement);
+
+  // 1. If we have a handle from open/drop, write directly back (overwrite original)
+  if (fileHandle) {
+    try {
+      const writable = await fileHandle.createWritable();
+      await writable.write(out);
+      await writable.close();
+      showToast('Saved → ' + fileHandle.name, 'success');
+      return;
+    } catch(e) { console.warn('Direct write failed:', e); }
+  }
+
+  // 2. Show save picker pre-filled with original filename & location
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: originalFilename,
+        types: [{ description: 'XML files', accept: { 'application/xml': ['.xml'], 'text/xml': ['.xml'] } }],
+        startIn: fileHandle || 'downloads'
+      });
+      fileHandle = handle;
+      const writable = await handle.createWritable();
+      await writable.write(out);
+      await writable.close();
+      showToast('Saved → ' + handle.name, 'success');
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+
+  // 3. Fallback: regular browser download with original filename (no _modified suffix)
+  const blob = new Blob([out], {type: 'application/xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = originalFilename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Downloaded as ' + originalFilename, 'success');
+}
+
+let toastTimer;
+function showToast(msg,type='') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show'+(type?' '+type:'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ── MIDI NOTE NAME ────────────────────────────────────────────────
+function midiToNote(midi) {
+  const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const m = parseInt(midi); if (isNaN(m) || m < 0) return '—';
+  return names[m % 12] + (Math.floor(m / 12) - 1);
+}
+
+// ── EVENT GRID ────────────────────────────────────────────────────
+function getSeqStepCount(seqCell) {
+  if (!seqCell) return 16;
+  const params = seqCell.querySelector('params');
+  // Try all known attribute names used by Nanobox
+  for (const attr of ['notestepcount','seqsteps','stepcount','steps','numsteps','seqlen','length','size']) {
+    const v = parseInt(params?.getAttribute(attr));
+    if (v > 0) return v;
+  }
+  // Infer from highest step value in events, rounded up to next bar (16 steps)
+  let maxStep = 15;
+  seqCell.querySelectorAll('seqevent').forEach(ev => {
+    const s = parseInt(ev.getAttribute('step') || 0);
+    if (s > maxStep) maxStep = s;
+  });
+  return Math.ceil((maxStep + 1) / 16) * 16;
+}
+
+function renderEventGridPanel() {
+  const seqCell = getSeqCell(currentSeqIdx);
+  const stepCount = getSeqStepCount(seqCell);
+  const CELL = 30; // px per step cell
+
+  // Collect only pads that have events
+  const activePads = PAD_MAP.map((pad, padIdx) => {
+    const evEls = seqCell ? [...seqCell.querySelectorAll(`seqevent[chan="${pad.chan}"]`)] : [];
+    if (!evEls.length) return null;
+    const byStep = {};
+    evEls.forEach((ev, evIdx) => {
+      const s = parseInt(ev.getAttribute('step') || 0);
+      if (!byStep[s]) byStep[s] = [];
+      byStep[s].push({ ev, evIdx });
+    });
+    return { pad, padIdx, evEls, byStep };
+  }).filter(Boolean);
+
+  if (!activePads.length) return `<div class="no-sample-msg" style="padding:32px">No events in this sequence.</div>`;
+
+  // ── Header rows ──
+  let barRow = '', stepRow = '';
+  for (let s = 0; s < stepCount; s++) {
+    const isBar   = s % 16 === 0;
+    const isBeat  = s % 4  === 0;
+    barRow  += `<div style="width:${CELL}px;flex-shrink:0;font-size:9px;font-weight:700;color:rgba(245,166,35,${isBar?'0.7':'0'});padding-left:2px;white-space:nowrap">${isBar?'Bar '+(Math.floor(s/16)+1):''}</div>`;
+    stepRow += `<div style="width:${CELL}px;flex-shrink:0;text-align:center;font-size:9px;color:${isBeat?'rgba(245,166,35,0.65)':'var(--text3)'}">${s+1}</div>`;
+  }
+
+  // ── Pad rows ──
+  let padRows = '';
+  activePads.forEach(({ pad, padIdx, evEls, byStep }) => {
+    const sample = getSampleName(padIdx) || '—';
+    let cells = '';
+    for (let s = 0; s < stepCount; s++) {
+      const isBar  = s % 16 === 0;
+      const isBeat = s % 4  === 0;
+      const stepEvs = byStep[s] || [];
+      const borderL = isBar  ? '2px solid rgba(245,166,35,0.45)'
+                    : isBeat ? '1px solid rgba(245,166,35,0.15)'
+                    :          '0.5px solid var(--border)';
+      const bg      = isBar  ? 'rgba(245,166,35,0.07)'
+                    : isBeat ? 'rgba(245,166,35,0.025)'
+                    :          'var(--surface2)';
+      const pills = stepEvs.map(({ ev, evIdx }) => {
+        const key = `${padIdx}:${s}:${evIdx}`;
+        const sel = selectedEvents.has(key);
+        const note = midiToNote(ev.getAttribute('pitch'));
+        return `<div class="ev-pill ${sel?'selected-ev':''}" onclick="toggleEvent('${key}',event)"
+          style="font-size:9px;padding:1px 3px;margin:1px" title="step ${s+1} | ${note}">${note}</div>`;
+      }).join('');
+      cells += `<div style="width:${CELL}px;flex-shrink:0;min-height:34px;border-left:${borderL};border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);border-right:0.5px solid var(--border);background:${bg};display:flex;align-items:center;justify-content:center;flex-wrap:wrap">${pills}</div>`;
+    }
+    padRows += `<div style="display:flex;align-items:stretch;margin-bottom:2px">
+      <div style="width:68px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;padding:4px 8px;background:var(--surface2);border:0.5px solid var(--border);border-radius:4px 0 0 4px;margin-right:3px">
+        <div style="font-size:11px;font-weight:600;color:var(--text)">${pad.name}</div>
+        <div style="font-size:9px;color:var(--amber);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60px" title="${sample}">${sample}</div>
+        <div style="font-size:9px;color:var(--text3)">${evEls.length}ev</div>
+      </div>
+      ${cells}
+    </div>`;
+  });
+
+  const labelCol = '<div style="width:68px;flex-shrink:0;margin-right:3px"></div>';
+  return `<div class="select-row" style="margin-bottom:12px">
+    <button class="btn-sm" style="border-color:var(--amber-border);color:var(--amber)" onclick="deleteView='pads';selectedEvents.clear();renderModeContent()">← Back</button>
+    <button class="btn-sm" onclick="selectAllEvents()">Select all</button>
+    <button class="btn-sm" onclick="clearEventSelection()">Deselect all</button>
+    <span style="margin-left:auto;font-size:11px;color:var(--text3)">${stepCount} steps · ${Math.round(stepCount/16)} bar${stepCount/16!==1?'s':''}</span>
+  </div>
+  <div style="overflow-x:auto;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:12px">
+    <div style="min-width:max-content">
+      <div style="display:flex;margin-bottom:1px">${labelCol}${barRow}</div>
+      <div style="display:flex;margin-bottom:5px">${labelCol}${stepRow}</div>
+      ${padRows}
+    </div>
+  </div>`;
+}
+
+function toggleEvent(key, e) {
+  e.stopPropagation();
+  if (selectedEvents.has(key)) selectedEvents.delete(key); else selectedEvents.add(key);
+  e.currentTarget.classList.toggle('selected-ev', selectedEvents.has(key));
+  renderActionButtons();
+}
+function selectAllEvents() {
+  const seqCell = getSeqCell(currentSeqIdx);
+  PAD_MAP.forEach((pad, padIdx) => {
+    const evs = seqCell ? [...seqCell.querySelectorAll(`seqevent[chan="${pad.chan}"]`)] : [];
+    evs.forEach((ev, evIdx) => { const step = parseInt(ev.getAttribute('step') || 0); selectedEvents.add(`${padIdx}:${step}:${evIdx}`); });
+  });
+  renderModeContent();
+}
+function clearEventSelection() {
+  selectedEvents.clear();
+  document.querySelectorAll('.ev-pill').forEach(el => el.classList.remove('selected-ev'));
+  renderActionButtons();
+}
+function deleteSelectedEvents() {
+  const seqCell = getSeqCell(currentSeqIdx); if (!seqCell) return;
+  const toRemove = {};
+  selectedEvents.forEach(key => { const [padIdx,,evIdx] = key.split(':').map(Number); if (!toRemove[padIdx]) toRemove[padIdx] = new Set(); toRemove[padIdx].add(evIdx); });
+  let removed = 0;
+  Object.entries(toRemove).forEach(([padIdx, evIdxSet]) => {
+    const chan = PAD_MAP[padIdx].chan;
+    const evs = [...seqCell.querySelectorAll(`seqevent[chan="${chan}"]`)];
+    evIdxSet.forEach(evIdx => { if (evs[evIdx]) { evs[evIdx].parentNode.removeChild(evs[evIdx]); removed++; } });
+  });
+  selectedEvents.clear(); buildSidebar();
+  document.querySelectorAll('.seq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === currentSeqIdx));
+  renderEditor(); deleteView = 'events'; renderModeContent();
+  showToast(`${removed} event${removed !== 1 ? 's' : ''} verwijderd`, 'success');
+}
+
+// ── MIDI EXPORT ───────────────────────────────────────────────────
+const MIDI_PPQ = 480, NANO_TO_MIDI = 120 / 960;
+function getBPM() { return parseInt(xmlDoc?.querySelector('cell[type="song"]')?.querySelector('params')?.getAttribute('globtempo') || 120); }
+function buildMidiFile(events, trackName, bpm) {
+  function varLen(n) { const b = []; b.unshift(n & 0x7F); n >>= 7; while (n > 0) { b.unshift((n & 0x7F) | 0x80); n >>= 7; } return b; }
+  function i32(n) { return [(n>>24)&0xFF,(n>>16)&0xFF,(n>>8)&0xFF,n&0xFF]; }
+  function i16(n) { return [(n>>8)&0xFF,n&0xFF]; }
+  const tempo = Math.round(60000000 / bpm);
+  const header = [0x4D,0x54,0x68,0x64,...i32(6),...i16(0),...i16(1),...i16(MIDI_PPQ)];
+  const trackEvs = [];
+  trackEvs.push({tick:0, data:[0xFF,0x51,0x03,(tempo>>16)&0xFF,(tempo>>8)&0xFF,tempo&0xFF]});
+  const nameBytes = trackName.split('').map(c => c.charCodeAt(0));
+  trackEvs.push({tick:0, data:[0xFF,0x03,nameBytes.length,...nameBytes]});
+  events.forEach(ev => {
+    const pitch = Math.max(0, Math.min(127, ev.pitch));
+    trackEvs.push({tick: ev.startTick, data:[0x90,pitch,100]});
+    trackEvs.push({tick: ev.endTick,   data:[0x80,pitch,0]});
+  });
+  trackEvs.sort((a,b) => a.tick - b.tick);
+  trackEvs.push({tick: trackEvs[trackEvs.length-1]?.tick || 0, data:[0xFF,0x2F,0x00]});
+  let prev = 0; const trackBytes = [];
+  trackEvs.forEach(ev => { const d = Math.max(0, ev.tick - prev); prev = ev.tick; trackBytes.push(...varLen(d), ...ev.data); });
+  const track = [0x4D,0x54,0x72,0x6B,...i32(trackBytes.length),...trackBytes];
+  return new Uint8Array([...header,...track]);
+}
+function exportMidiForPad(padIdx) {
+  const seqCell = getSeqCell(currentSeqIdx); if (!seqCell) return;
+  const pad = PAD_MAP[padIdx];
+  const evEls = [...seqCell.querySelectorAll(`seqevent[chan="${pad.chan}"]`)];
+  if (evEls.length === 0) { showToast('Geen events op dit pad', 'error'); return; }
+  const bpm = getBPM();
+  const events = evEls.map(ev => ({
+    startTick: Math.round(parseInt(ev.getAttribute('strtks') || 0) * NANO_TO_MIDI),
+    endTick:   Math.round((parseInt(ev.getAttribute('strtks') || 0) + parseInt(ev.getAttribute('lentks') || 960)) * NANO_TO_MIDI),
+    pitch: parseInt(ev.getAttribute('pitch') || 60) || 60
+  }));
+  const sampleName = getSampleName(padIdx) || pad.name;
+  const midi = buildMidiFile(events, `${pad.name} - ${sampleName}`, bpm);
+  downloadBlob(midi, `${sampleName.replace(/[^a-z0-9]/gi,'_')}_S${currentSeqIdx+1}.mid`, 'audio/midi');
+  showToast(`MIDI geëxporteerd: ${sampleName}`, 'success');
+  closeMidiModal();
+}
+function exportMidiAllPads() {
+  const seqCell = getSeqCell(currentSeqIdx); if (!seqCell) return;
+  let count = 0;
+  PAD_MAP.forEach((pad, padIdx) => {
+    const evEls = [...seqCell.querySelectorAll(`seqevent[chan="${pad.chan}"]`)]; if (evEls.length === 0) return;
+    const bpm = getBPM();
+    const events = evEls.map(ev => ({
+      startTick: Math.round(parseInt(ev.getAttribute('strtks') || 0) * NANO_TO_MIDI),
+      endTick:   Math.round((parseInt(ev.getAttribute('strtks') || 0) + parseInt(ev.getAttribute('lentks') || 960)) * NANO_TO_MIDI),
+      pitch: parseInt(ev.getAttribute('pitch') || 60) || 60
+    }));
+    const sampleName = getSampleName(padIdx) || pad.name;
+    const midi = buildMidiFile(events, `${pad.name} - ${sampleName}`, bpm);
+    setTimeout(() => downloadBlob(midi, `${sampleName.replace(/[^a-z0-9]/gi,'_')}_S${currentSeqIdx+1}.mid`, 'audio/midi'), count * 200);
+    count++;
+  });
+  showToast(`${count} MIDI bestanden geëxporteerd`, 'success');
+  closeMidiModal();
+}
+function downloadBlob(data, filename, type) {
+  const blob = new Blob([data], {type}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function showMidiExport() {
+  const seqCell = getSeqCell(currentSeqIdx);
+  const seqName = 'S' + (currentSeqIdx + 1); const bpm = getBPM();
+  const rows = PAD_MAP.map((pad, padIdx) => {
+    const count = seqCell ? countSeqEvents(seqCell, pad.chan) : 0;
+    const sample = getSampleName(padIdx) || '—';
+    return `<div class="midi-pad-row ${count > 0 ? '' : 'no-events'}">
+      <span class="midi-pad-name">${pad.name}</span>
+      <span class="midi-pad-sample">${sample}</span>
+      <span class="midi-pad-count">${count} events</span>
+      <button class="midi-dl-btn" ${count > 0 ? '' : 'disabled'} onclick="exportMidiForPad(${padIdx})">⬇ .mid</button>
+    </div>`;
+  }).join('');
+  const modal = document.createElement('div');
+  modal.className = 'modal-bg'; modal.id = 'midiModal';
+  modal.innerHTML = `<div class="modal">
+    <button class="modal-close" onclick="closeMidiModal()">✕</button>
+    <div class="modal-title">🎼 MIDI Export — ${seqName}</div>
+    <div class="modal-sub">BPM: ${bpm} · Exporteer per pad als .mid bestand</div>
+    <button class="modal-all-btn" onclick="exportMidiAllPads()">⬇ Exporteer alle pads</button>
+    <div class="midi-pad-list">${rows}</div>
+  </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) closeMidiModal(); });
+  document.body.appendChild(modal);
+}
+function closeMidiModal() { document.getElementById('midiModal')?.remove(); }
+</script>
+</body>
+</html>
