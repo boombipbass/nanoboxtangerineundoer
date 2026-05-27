@@ -5,15 +5,16 @@ by uploading the preset.xml file into the webbrowser app
 and select the pads and sequences you want to delete. 
 
 remember to make a backup of your preset.
-USAGE:
-  1. Drag & drop your preset.xml into the app (or click to browse)
+
+Delete sequences of a certain pad
+
   2. Select a sequence (S1-S16) from the left panel
   3. Click pads to select which ones to clear
   4. Click "Delete selected notes"
-  5. Click "Download XML" to save the modified preset file
 
-NOTE: If Windows Defender shows a warning when opening the .hta,
-click "More info" -> "Run anyway". This is normal for unsigned apps.
+Delete single events
+
+Load the correct folder of the preset.xml, pick a note, you will hear it and can alo delete it.
 
 ⇄ Swap pads mode — switch to it with the tab at the top of the editor:
 
@@ -44,4 +45,7 @@ There are two checkboxes in swap mode so you can
 choose to swap just the notes, just the sample, 
 or both together.
 
-**** *Also info on pad settings and the deleting of single events on the stepsequencer of the pads are available in beta too, together with slices view and editting.* ****
+NOTE: If Windows Defender shows a warning when opening the .hta,
+click "More info" -> "Run anyway". This is normal for unsigned apps.
+
+Slices viewing in beta****
