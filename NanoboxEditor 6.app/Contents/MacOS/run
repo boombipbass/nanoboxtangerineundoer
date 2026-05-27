@@ -1,3 +1,0 @@
-#!/bin/bash
-HTML="$(dirname "$0")/../Resources/nanobox_editor.html"
-open -a Safari "$HTML"
